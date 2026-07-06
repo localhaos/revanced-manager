@@ -23,6 +23,8 @@ This document tracks the minimum runtime requirements for installing generated A
 - The helper rejects missing files and non-APK file extensions before launching the installer.
 - The helper checks `PackageManager.canRequestPackageInstalls()` before launching the installer.
 - `ActivityNotFoundException` is converted into a clear `IllegalStateException` when no package installer is available.
+- Patching now skips mounted-install root unmount when root access is not granted, avoiding the root-service Binder path in no-root mode.
+- Failed root unmount attempts are logged and skipped instead of failing the patch worker.
 
 ## Build/runtime constraints
 
