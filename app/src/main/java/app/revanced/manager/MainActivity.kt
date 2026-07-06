@@ -386,7 +386,7 @@ private fun ReVancedManager(vm: MainViewModel) {
             deepLinkedComposable<Settings.Updates>("settings/updates") {
                 UpdatesSettingsScreen(
                     onBackClick = navController::popBackStackSafe,
-                    onChangelogClick = { source -> navController.navigateComplex(Settings.Changelogs, source) },
+                    onChangelogClick = { navController.navigateComplex(Settings.Changelogs, ChangelogSource.Manager) },
                     onUpdateClick = { navController.navigateSafe(Update()) }
                 )
             }
