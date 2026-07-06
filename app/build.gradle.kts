@@ -80,6 +80,10 @@ dependencies {
     implementation(libs.libsu.service)
     implementation(libs.libsu.nio)
 
+    // Shizuku
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+
     // Koin
     implementation(libs.koin.android)
     implementation(libs.koin.compose)
@@ -258,83 +262,12 @@ android {
             excludes += "/org/bouncycastle/x509/**.properties"
             excludes += "/META-INF/INDEX.LIST"
             excludes += "/META-INF/**/*.txt"
-            excludes += "/META-INF/**/*.properties"
             excludes += "/META-INF/DEPENDENCIES"
-
-            // AAPT
-            excludes += "/prebuilt/**/*"
         }
-        jniLibs {
-            // 32-bit x86 is dead
-            excludes += "/lib/x86/*.so"
-
-            // Equivalent of AndroidManifest's extractNativeLibs=true to ensure libs are compressed
-            useLegacyPackaging = true
-        }
-    }
-}
-
-androidComponents {
-    onVariants(selector().withBuildType("release")) {
-        it.packaging.resources.excludes.apply {
-            // Debug metadata
-            add("/META-INF/*.version")
-            add("/META-INF/*.kotlin_module")
-            add("/kotlin-tooling-metadata.json")
-
-            // Kotlin debugging (https://github.com/Kotlin/kotlinx.coroutines/issues/2274)
-            add("/DebugProbesKt.bin")
-        }
-    }
-}
-
-kotlin {
-    jvmToolchain(17)
-    compilerOptions {
-        jvmTarget = JvmTarget.JVM_17
-        freeCompilerArgs.addAll(
-            "-Xexplicit-backing-fields",
-            "-Xcontext-parameters",
-        )
-    }
-}
-
-configurations {
-    all {
-        // ReVanced Library has a dependency which conflicts with whatever this is. We don't use protobuf, so it should be fine.
-        exclude(group = "com.google.api.grpc", module = "proto-google-common-protos")
     }
 }
 
 aboutLibraries {
-    library {
-        // Enable the duplication mode, allows to merge, or link dependencies which relate
-        duplicationMode = DuplicateMode.MERGE
-        // Configure the duplication rule, to match "duplicates" with
-        duplicationRule = DuplicateRule.EXACT
-    }
-}
-
-tasks {
-    // Needed by gradle-semantic-release-plugin.
-    // Tracking: https://github.com/KengoTODA/gradle-semantic-release-plugin/issues/435.
-    val publish by registering {
-        group = "publishing"
-        description = "Build the release APK"
-
-        dependsOn("assembleRelease")
-
-        val apk = project.layout.buildDirectory.file("outputs/apk/release/${outputApkFileName}")
-        val ascFile = apk.map { it.asFile.resolveSibling("${it.asFile.name}.asc") }
-
-        inputs.file(apk).withPropertyName("inputApk")
-        outputs.file(ascFile).withPropertyName("outputAsc")
-
-        doLast {
-            signing {
-                useGpgCmd()
-                sign(apk.get().asFile)
-            }
-        }
-    }
+    duplicationMode = DuplicateMode.MERGE
+    duplicationRule = DuplicateRule.SIMPLE
 }
