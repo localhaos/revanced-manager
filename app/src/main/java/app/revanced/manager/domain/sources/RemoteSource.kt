@@ -2,6 +2,7 @@ package app.revanced.manager.domain.sources
 
 import app.revanced.manager.data.redux.ActionContext
 import app.revanced.manager.network.api.ReVancedAPI
+import app.revanced.manager.network.dto.GitHubRelease
 import app.revanced.manager.network.dto.ReVancedAsset
 import app.revanced.manager.network.service.HttpService
 import app.revanced.manager.network.utils.APIResponse
@@ -84,9 +85,17 @@ class JsonSource<T>(
     loader: Loader<T>
 ) : RemoteSource<T>(name, uid, versionHash, releasedAt, error, file, endpoint, autoUpdate, loader) {
     override suspend fun getLatestInfo() = withContext(Dispatchers.IO) {
-        http.request<ReVancedAsset> {
-            url(endpoint)
-        }.getOrThrow()
+        val githubReleaseEndpoint = endpoint.toGitHubReleaseApiEndpoint()
+
+        if (githubReleaseEndpoint != null) {
+            http.request<GitHubRelease> {
+                url(githubReleaseEndpoint)
+            }.getOrThrow().toReVancedAsset()
+        } else {
+            http.request<ReVancedAsset> {
+                url(endpoint)
+            }.getOrThrow()
+        }
     }
 
     override fun copy(
@@ -106,6 +115,33 @@ class JsonSource<T>(
         autoUpdate,
         loader
     )
+
+    private companion object {
+        private val githubReleaseApiRegex = Regex(
+            pattern = "^https://api\\.github\\.com/repos/([^/]+)/([^/]+)/releases/(latest|tags/[^?#]+)(?:[?#].*)?$",
+            option = RegexOption.IGNORE_CASE,
+        )
+        private val githubReleasePageRegex = Regex(
+            pattern = "^https://github\\.com/([^/]+)/([^/]+)/(?:releases/(latest|tag/[^?#]+)|releases)(?:[?#].*)?$",
+            option = RegexOption.IGNORE_CASE,
+        )
+
+        private fun String.toGitHubReleaseApiEndpoint(): String? {
+            val trimmed = trim().trimEnd('/')
+
+            githubReleaseApiRegex.matchEntire(trimmed)?.let {
+                return trimmed
+            }
+
+            val match = githubReleasePageRegex.matchEntire(trimmed) ?: return null
+            val owner = match.groupValues[1]
+            val repo = match.groupValues[2]
+            val releaseRef = match.groupValues[3].ifBlank { "latest" }
+                .replace("tag/", "tags/")
+
+            return "https://api.github.com/repos/$owner/$repo/releases/$releaseRef"
+        }
+    }
 }
 
 class APISource<T>(
