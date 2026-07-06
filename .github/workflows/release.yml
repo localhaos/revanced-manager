@@ -46,11 +46,36 @@ jobs:
               run: npm ci
 
             - name: Import GPG key
+              if: ${{ secrets.GPG_PRIVATE_KEY != '' }}
               uses: crazy-max/ghaction-import-gpg@v7
               with:
                   gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
                   passphrase: ${{ secrets.GPG_PASSPHRASE }}
                   fingerprint: ${{ vars.GPG_FINGERPRINT }}
+
+            - name: Generate fallback GPG key
+              if: ${{ secrets.GPG_PRIVATE_KEY == '' }}
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  cat > gpg-batch <<'EOF'
+                  %no-protection
+                  Key-Type: eddsa
+                  Key-Curve: ed25519
+                  Key-Usage: sign
+                  Name-Real: GitHub Actions Release
+                  Name-Email: actions@users.noreply.github.com
+                  Expire-Date: 0
+                  EOF
+                  gpg --batch --generate-key gpg-batch
+                  rm -f gpg-batch
+                  fingerprint="$(gpg --batch --list-secret-keys --with-colons actions@users.noreply.github.com | awk -F: '/^fpr:/ { print $10; exit }')"
+                  test -n "$fingerprint"
+                  git config --global user.signingkey "$fingerprint"
+                  git config --global commit.gpgsign false
+                  git config --global tag.gpgsign false
+                  gpg --batch --list-secret-keys --keyid-format LONG
+                  echo "Generated fallback GPG fingerprint: $fingerprint"
 
             - name: Setup keystore
               run: |
