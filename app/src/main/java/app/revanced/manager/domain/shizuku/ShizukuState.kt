@@ -65,8 +65,19 @@ private object ShizukuSafeApi {
             if (parameterType != null) method.invoke(null, argument) else method.invoke(null)
         }.getOrElse { error ->
             val root = if (error is InvocationTargetException) error.targetException ?: error else error
-            if (root.isRecoverableBinderFailure()) null else throw root
+            if (root.hasRecoverableBinderFailure()) null else throw root
         }
+
+    private fun Throwable.hasRecoverableBinderFailure(): Boolean {
+        var current: Throwable? = this
+        var depth = 0
+        while (current != null && depth < 8) {
+            if (current.isRecoverableBinderFailure()) return true
+            current = current.cause
+            depth++
+        }
+        return false
+    }
 
     private fun Throwable.isRecoverableBinderFailure(): Boolean =
         this is IllegalStateException ||
@@ -76,5 +87,6 @@ private object ShizukuSafeApi {
                 this is SecurityException ||
                 message?.contains("asBinder()", ignoreCase = true) == true ||
                 message?.contains("null object reference", ignoreCase = true) == true ||
+                message?.contains("IInterface", ignoreCase = true) == true ||
                 message?.contains("binder", ignoreCase = true) == true
 }
