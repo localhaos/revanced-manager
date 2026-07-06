@@ -14,8 +14,12 @@ This document tracks the minimum runtime requirements for installing generated A
 
 - `PM.installPackage(apk: File)` performs a non-root install handoff through `Intent.ACTION_INSTALL_PACKAGE`.
 - The APK path is converted to a `content://` URI through `ManagerFileProvider`.
-- The install intent includes `Intent.FLAG_GRANT_READ_URI_PERMISSION`.
-- Read access is explicitly granted to resolved package installer activities before starting the installer.
+- The install intents use MIME type `application/vnd.android.package-archive`.
+- The helper tries both `Intent.ACTION_INSTALL_PACKAGE` and `Intent.ACTION_VIEW` so system installers and external APK installers can receive the file.
+- The install chooser is used when a compatible installer such as a third-party APK installer is available.
+- The install intents include `Intent.FLAG_GRANT_READ_URI_PERMISSION`.
+- The install intents include `ClipData` with the APK URI for Android versions that require URI grants through clip data.
+- Read access is explicitly granted to every resolved installer activity before starting the installer.
 - The helper rejects missing files and non-APK file extensions before launching the installer.
 - The helper checks `PackageManager.canRequestPackageInstalls()` before launching the installer.
 - `ActivityNotFoundException` is converted into a clear `IllegalStateException` when no package installer is available.
