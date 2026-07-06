@@ -10,6 +10,7 @@ import android.content.pm.PackageManager.PackageInfoFlags
 import android.net.Uri
 import android.os.Build
 import android.os.Parcelable
+import android.provider.Settings
 import androidx.compose.runtime.Immutable
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
@@ -147,7 +148,10 @@ class PM(
     fun installPackage(apk: File) {
         require(apk.exists() && apk.isFile) { "APK file does not exist: ${apk.absolutePath}" }
         require(apk.extension.equals("apk", ignoreCase = true)) { "File is not an APK: ${apk.name}" }
-        require(canInstallPackages()) { "Package installation permission is not granted" }
+        if (!canInstallPackages()) {
+            openUnknownAppInstallSettings()
+            throw IllegalStateException("Package installation permission is not granted. Enable unknown app installs for ${app.packageName} and retry installation.")
+        }
 
         val uri = FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", apk)
         val installIntent = createApkInstallIntent(uri, Intent.ACTION_INSTALL_PACKAGE)
@@ -173,6 +177,20 @@ class PM(
         } catch (error: ActivityNotFoundException) {
             throw IllegalStateException("No package installer is available", error)
         }
+    }
+
+    fun openUnknownAppInstallSettings() {
+        val appSettingsUri = Uri.parse("package:${app.packageName}")
+        val intents = listOf(
+            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, appSettingsUri),
+            Intent(Settings.ACTION_SECURITY_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+
+        val intent = intents.firstOrNull { it.hasResolvedActivity() }
+            ?: throw IllegalStateException("No settings activity is available")
+
+        app.startActivity(intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
     }
 
     private fun createApkInstallIntent(uri: Uri, action: String) = Intent(action).apply {
