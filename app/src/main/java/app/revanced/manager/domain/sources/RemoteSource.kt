@@ -11,10 +11,13 @@ import app.revanced.manager.patcher.patch.PatchBundle
 import io.ktor.client.request.url
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
-import kotlinx.datetime.LocalDateTime
 
 typealias RemotePatchBundle = RemoteSource<PatchBundle>
 typealias JsonPatchBundle = JsonSource<PatchBundle>
@@ -85,8 +88,10 @@ class JsonSource<T>(
     loader: Loader<T>
 ) : RemoteSource<T>(name, uid, versionHash, releasedAt, error, file, endpoint, autoUpdate, loader) {
     override suspend fun getLatestInfo() = withContext(Dispatchers.IO) {
-        val githubReleaseEndpoint = endpoint.toGitHubReleaseApiEndpoint()
+        val directPatchBundle = endpoint.toDirectPatchBundleAsset()
+        if (directPatchBundle != null) return@withContext directPatchBundle
 
+        val githubReleaseEndpoint = endpoint.toGitHubReleaseApiEndpoint()
         if (githubReleaseEndpoint != null) {
             http.request<GitHubRelease> {
                 url(githubReleaseEndpoint)
@@ -125,6 +130,14 @@ class JsonSource<T>(
             pattern = "^https://github\\.com/([^/]+)/([^/]+)/(?:releases/(latest|tag/[^?#]+)|releases)(?:[?#].*)?$",
             option = RegexOption.IGNORE_CASE,
         )
+        private val directPatchBundleRegex = Regex(
+            pattern = "^https?://.+\\.jar(?:[?#].*)?$",
+            option = RegexOption.IGNORE_CASE,
+        )
+        private val githubReleaseDownloadRegex = Regex(
+            pattern = "^https://github\\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^?#]+)(?:[?#].*)?$",
+            option = RegexOption.IGNORE_CASE,
+        )
 
         private fun String.toGitHubReleaseApiEndpoint(): String? {
             val trimmed = trim().trimEnd('/')
@@ -140,6 +153,23 @@ class JsonSource<T>(
                 .replace("tag/", "tags/")
 
             return "https://api.github.com/repos/$owner/$repo/releases/$releaseRef"
+        }
+
+        private fun String.toDirectPatchBundleAsset(): ReVancedAsset? {
+            val trimmed = trim()
+            if (!directPatchBundleRegex.matches(trimmed)) return null
+
+            val releaseDownload = githubReleaseDownloadRegex.matchEntire(trimmed)
+            val version = releaseDownload?.groupValues?.getOrNull(3)
+                ?: trimmed.substringAfterLast('/').substringBefore('?').substringBefore('#')
+
+            return ReVancedAsset(
+                downloadUrl = trimmed,
+                createdAt = Clock.System.now().toLocalDateTime(TimeZone.UTC),
+                signatureDownloadUrl = null,
+                description = "Direct patch bundle",
+                version = version,
+            )
         }
     }
 }
