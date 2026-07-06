@@ -3,6 +3,9 @@ package app.revanced.manager.domain.sources
 import app.revanced.manager.network.dto.GitHubRelease
 import app.revanced.manager.network.dto.GitHubReleaseAsset
 import app.revanced.manager.network.dto.ReVancedAsset
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Resolves GitHub repository and release URLs into patch-bundle endpoints.
@@ -14,7 +17,7 @@ import app.revanced.manager.network.dto.ReVancedAsset
  * - https://github.com/owner/repo/releases/tag/<tag>
  * - https://api.github.com/repos/owner/repo/releases/latest
  * - https://api.github.com/repos/owner/repo/releases/tags/<tag>
- * - direct GitHub release asset URLs ending with .rvp, .mpp or .jar
+ * - direct URLs ending with .rvp, .mpp or .jar
  */
 object GitHubBundleAutoFinder {
     enum class BundleKind(val extension: String) {
@@ -69,16 +72,19 @@ object GitHubBundleAutoFinder {
 
     fun directAssetFrom(input: String): ReVancedAsset? {
         val normalized = input.trim()
-        val match = githubReleaseAssetRegex.matchEntire(normalized) ?: return null
-        val tag = match.groupValues[3]
-        val assetName = match.groupValues[4]
-        if (assetName.bundleKind() == null) return null
+        val assetName = normalized.substringAfterLast('/').substringBefore('?').substringBefore('#')
+        val kind = assetName.bundleKind() ?: return null
+        if (!directBundleRegex.matches(normalized)) return null
+
+        val tag = githubReleaseAssetRegex.matchEntire(normalized)?.groupValues?.getOrNull(3)
+            ?: assetName.substringBeforeLast(kind.extension, assetName)
+                .ifBlank { assetName }
 
         return ReVancedAsset(
             downloadUrl = normalized,
-            createdAt = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.UTC),
+            createdAt = Clock.System.now().toLocalDateTime(TimeZone.UTC),
             signatureDownloadUrl = null,
-            description = "GitHub release patch bundle",
+            description = "Direct ${kind.extension} patch bundle",
             version = tag,
         )
     }
@@ -134,6 +140,11 @@ object GitHubBundleAutoFinder {
 
     private val githubReleaseAssetRegex = Regex(
         pattern = "^https://github\\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^?#]+)(?:[?#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val directBundleRegex = Regex(
+        pattern = "^https?://.+\\.(rvp|mpp|jar)(?:[?#].*)?$",
         option = RegexOption.IGNORE_CASE,
     )
 }
