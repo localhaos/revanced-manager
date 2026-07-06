@@ -41,6 +41,7 @@ import app.revanced.manager.downloader.DownloaderHostApi
 import app.revanced.manager.downloader.Scope
 import app.revanced.manager.downloader.UserInteractionException
 import app.revanced.manager.ui.model.SelectedApp
+import app.revanced.manager.util.GeneratedApkInstallHandler
 import app.revanced.manager.util.Options
 import app.revanced.manager.util.PatchSelection
 import app.revanced.manager.util.tag
@@ -242,7 +243,7 @@ class PatcherWorker(
                 keystoreManager.sign(patchedApk, outputApk)
             }
 
-            requestNoRootInstallFromMainActivity(outputApk)
+            requestNoRootInstall(outputApk)
 
             Log.i(tag, "Patching succeeded".logFmt())
             Result.success()
@@ -290,25 +291,17 @@ class PatcherWorker(
         }
     }
 
-    private fun requestNoRootInstallFromMainActivity(outputApk: File) {
+    private fun requestNoRootInstall(outputApk: File) {
         if (rootInstaller.hasRootAccess()) return
 
-        val intent = Intent(applicationContext, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_INSTALL_GENERATED_APK
-            putExtra(MainActivity.EXTRA_GENERATED_APK_PATH, outputApk.absolutePath)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-
         runCatching {
-            applicationContext.startActivity(intent)
+            GeneratedApkInstallHandler.requestForegroundInstall(applicationContext, outputApk)
         }.onSuccess {
-            Log.i(tag, "Requested foreground no-root installation for ${outputApk.absolutePath}.".logFmt())
+            Log.i(tag, "Queued no-root installation for ${outputApk.absolutePath}.".logFmt())
         }.onFailure { error ->
             Log.w(
                 tag,
-                "Foreground no-root installer request failed for ${outputApk.absolutePath}; APK was kept for manual installation.".logFmt(),
+                "No-root installer queue failed for ${outputApk.absolutePath}; APK was kept for manual installation.".logFmt(),
                 error
             )
         }
