@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace --info --warning-mode all clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=${{ matrix.version }} -PmanagerBuildLabel=${{ matrix.label }}
+          ./gradlew --no-daemon --stacktrace --info clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=${{ matrix.version }} -PmanagerBuildLabel=${{ matrix.label }}
 
       - name: Collect build outputs
         if: always()
