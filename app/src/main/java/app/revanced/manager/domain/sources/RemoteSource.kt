@@ -11,10 +11,7 @@ import app.revanced.manager.patcher.patch.PatchBundle
 import io.ktor.client.request.url
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
@@ -88,19 +85,22 @@ class JsonSource<T>(
     loader: Loader<T>
 ) : RemoteSource<T>(name, uid, versionHash, releasedAt, error, file, endpoint, autoUpdate, loader) {
     override suspend fun getLatestInfo() = withContext(Dispatchers.IO) {
-        val directPatchBundle = endpoint.toDirectPatchBundleAsset()
-        if (directPatchBundle != null) return@withContext directPatchBundle
+        GitHubBundleAutoFinder.directAssetFrom(endpoint)?.let { return@withContext it }
 
-        val githubReleaseEndpoint = endpoint.toGitHubReleaseApiEndpoint()
-        if (githubReleaseEndpoint != null) {
-            http.request<GitHubRelease> {
-                url(githubReleaseEndpoint)
-            }.getOrThrow().toReVancedAsset()
-        } else {
-            http.request<ReVancedAsset> {
-                url(endpoint)
+        val githubCandidate = GitHubBundleAutoFinder.candidateFrom(endpoint)
+        if (githubCandidate != null) {
+            val release = http.request<GitHubRelease> {
+                url(githubCandidate.apiEndpoint)
             }.getOrThrow()
+
+            return@withContext GitHubBundleAutoFinder
+                .resolveRelease(release, githubCandidate.apiEndpoint)
+                .asset
         }
+
+        http.request<ReVancedAsset> {
+            url(endpoint)
+        }.getOrThrow()
     }
 
     override fun copy(
@@ -120,58 +120,6 @@ class JsonSource<T>(
         autoUpdate,
         loader
     )
-
-    private companion object {
-        private val githubReleaseApiRegex = Regex(
-            pattern = "^https://api\\.github\\.com/repos/([^/]+)/([^/]+)/releases/(latest|tags/[^?#]+)(?:[?#].*)?$",
-            option = RegexOption.IGNORE_CASE,
-        )
-        private val githubReleasePageRegex = Regex(
-            pattern = "^https://github\\.com/([^/]+)/([^/]+)/(?:releases/(latest|tag/[^?#]+)|releases)(?:[?#].*)?$",
-            option = RegexOption.IGNORE_CASE,
-        )
-        private val directPatchBundleRegex = Regex(
-            pattern = "^https?://.+\\.jar(?:[?#].*)?$",
-            option = RegexOption.IGNORE_CASE,
-        )
-        private val githubReleaseDownloadRegex = Regex(
-            pattern = "^https://github\\.com/([^/]+)/([^/]+)/releases/download/([^/]+)/([^?#]+)(?:[?#].*)?$",
-            option = RegexOption.IGNORE_CASE,
-        )
-
-        private fun String.toGitHubReleaseApiEndpoint(): String? {
-            val trimmed = trim().trimEnd('/')
-
-            githubReleaseApiRegex.matchEntire(trimmed)?.let {
-                return trimmed
-            }
-
-            val match = githubReleasePageRegex.matchEntire(trimmed) ?: return null
-            val owner = match.groupValues[1]
-            val repo = match.groupValues[2]
-            val releaseRef = match.groupValues[3].ifBlank { "latest" }
-                .replace("tag/", "tags/")
-
-            return "https://api.github.com/repos/$owner/$repo/releases/$releaseRef"
-        }
-
-        private fun String.toDirectPatchBundleAsset(): ReVancedAsset? {
-            val trimmed = trim()
-            if (!directPatchBundleRegex.matches(trimmed)) return null
-
-            val releaseDownload = githubReleaseDownloadRegex.matchEntire(trimmed)
-            val version = releaseDownload?.groupValues?.getOrNull(3)
-                ?: trimmed.substringAfterLast('/').substringBefore('?').substringBefore('#')
-
-            return ReVancedAsset(
-                downloadUrl = trimmed,
-                createdAt = Clock.System.now().toLocalDateTime(TimeZone.UTC),
-                signatureDownloadUrl = null,
-                description = "Direct patch bundle",
-                version = version,
-            )
-        }
-    }
 }
 
 class APISource<T>(
