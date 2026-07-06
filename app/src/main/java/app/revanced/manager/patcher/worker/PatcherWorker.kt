@@ -42,7 +42,6 @@ import app.revanced.manager.downloader.Scope
 import app.revanced.manager.downloader.UserInteractionException
 import app.revanced.manager.ui.model.SelectedApp
 import app.revanced.manager.util.Options
-import app.revanced.manager.util.PM
 import app.revanced.manager.util.PatchSelection
 import app.revanced.manager.util.tag
 import com.topjohnwu.superuser.Shell
@@ -63,7 +62,6 @@ class PatcherWorker(
     private val keystoreManager: KeystoreManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
     private val downloadedAppRepository: DownloadedAppRepository by inject()
-    private val pm: PM by inject()
     private val fs: Filesystem by inject()
     private val installedAppRepository: InstalledAppRepository by inject()
     private val rootInstaller: RootInstaller by inject()
@@ -220,7 +218,7 @@ class PatcherWorker(
                 }
 
                 is SelectedApp.Local -> selectedApp.file.also { args.setInputFile(it) }
-                is SelectedApp.Installed -> File(pm.getPackageInfo(selectedApp.packageName)!!.applicationInfo!!.sourceDir)
+                is SelectedApp.Installed -> File(applicationContext.packageManager.getPackageInfo(selectedApp.packageName, 0).applicationInfo!!.sourceDir)
             }
 
             val runtime = if (prefs.useProcessRuntime.get()) {
@@ -244,7 +242,7 @@ class PatcherWorker(
                 keystoreManager.sign(patchedApk, outputApk)
             }
 
-            launchNoRootInstaller(outputApk)
+            requestNoRootInstallFromMainActivity(outputApk)
 
             Log.i(tag, "Patching succeeded".logFmt())
             Result.success()
@@ -292,17 +290,25 @@ class PatcherWorker(
         }
     }
 
-    private fun launchNoRootInstaller(outputApk: File) {
+    private fun requestNoRootInstallFromMainActivity(outputApk: File) {
         if (rootInstaller.hasRootAccess()) return
 
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_INSTALL_GENERATED_APK
+            putExtra(MainActivity.EXTRA_GENERATED_APK_PATH, outputApk.absolutePath)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
         runCatching {
-            pm.installPackage(outputApk)
+            applicationContext.startActivity(intent)
         }.onSuccess {
-            Log.i(tag, "Requested no-root package installation for ${outputApk.absolutePath}.".logFmt())
+            Log.i(tag, "Requested foreground no-root installation for ${outputApk.absolutePath}.".logFmt())
         }.onFailure { error ->
             Log.w(
                 tag,
-                "No-root installer handoff failed for ${outputApk.absolutePath}; APK was kept for manual installation.".logFmt(),
+                "Foreground no-root installer request failed for ${outputApk.absolutePath}; APK was kept for manual installation.".logFmt(),
                 error
             )
         }
