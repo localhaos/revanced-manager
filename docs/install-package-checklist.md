@@ -25,6 +25,8 @@ This document tracks the minimum runtime requirements for installing generated A
 - `ActivityNotFoundException` is converted into a clear `IllegalStateException` when no package installer is available.
 - Patching now skips mounted-install root unmount when root access is not granted, avoiding the root-service Binder path in no-root mode.
 - Failed root unmount attempts are logged and skipped instead of failing the patch worker.
+- After signing the patched APK, `PatcherWorker` now requests no-root installation through `PM.installPackage(outputApk)` when root access is not granted.
+- If Android blocks installer launch from the worker or the install permission is missing, the patch result is kept and the failure is logged instead of deleting the generated APK.
 
 ## Build/runtime constraints
 
@@ -34,7 +36,7 @@ This document tracks the minimum runtime requirements for installing generated A
 
 ## Still to verify in UI flow
 
-- The UI/controller that handles a completed patch should call `PM.installPackage(apk)` or an equivalent installer path.
+- On Android versions that block background activity launch, the UI should expose the generated APK path and allow manually retrying `PM.installPackage(apk)` from a foreground user action.
 - If the installer path uses Ackpine or `PackageInstaller` elsewhere, installation result callbacks must surface failure reasons to the UI/logs.
 - `InstallSourceResolver` currently exists as a helper; it still needs to be wired into any UI/runtime logic that distinguishes Play Store installs (`com.android.vending`) from other install sources.
 
