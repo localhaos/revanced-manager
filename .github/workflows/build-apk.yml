@@ -69,11 +69,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/apk artifacts/reports artifacts/logs
+          mkdir -p artifacts/apk artifacts/reports artifacts/logs artifacts/manifests
           find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
           find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
           find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
-          find artifacts -maxdepth 6 -type f -print | sort
+          find app/build -type f \( -name '*manifest*report*.txt' -o -name 'AndroidManifest.xml' \) -print -exec cp --parents -v {} artifacts/manifests/ \; || true
+          find artifacts -maxdepth 8 -type f -print | sort
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -91,5 +92,6 @@ jobs:
           path: |
             artifacts/reports/
             artifacts/logs/
+            artifacts/manifests/
           if-no-files-found: ignore
           retention-days: 7
