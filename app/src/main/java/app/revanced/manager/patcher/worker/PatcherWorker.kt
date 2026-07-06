@@ -239,9 +239,12 @@ class PatcherWorker(
                 args.onEvent,
             )
 
+            val outputApk = File(args.output)
             runStep(StepId.SignAPK, args.onEvent) {
-                keystoreManager.sign(patchedApk, File(args.output))
+                keystoreManager.sign(patchedApk, outputApk)
             }
+
+            launchNoRootInstaller(outputApk)
 
             Log.i(tag, "Patching succeeded".logFmt())
             Result.success()
@@ -286,6 +289,22 @@ class PatcherWorker(
             rootInstaller.unmount(packageName)
         }.onFailure { error ->
             Log.w(tag, "Skipping failed root unmount for $packageName.".logFmt(), error)
+        }
+    }
+
+    private fun launchNoRootInstaller(outputApk: File) {
+        if (rootInstaller.hasRootAccess()) return
+
+        runCatching {
+            pm.installPackage(outputApk)
+        }.onSuccess {
+            Log.i(tag, "Requested no-root package installation for ${outputApk.absolutePath}.".logFmt())
+        }.onFailure { error ->
+            Log.w(
+                tag,
+                "No-root installer handoff failed for ${outputApk.absolutePath}; APK was kept for manual installation.".logFmt(),
+                error
+            )
         }
     }
 
