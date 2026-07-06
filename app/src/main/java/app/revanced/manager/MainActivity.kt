@@ -1,8 +1,10 @@
 package app.revanced.manager
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Parcelable
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -67,18 +69,23 @@ import app.revanced.manager.ui.theme.Theme
 import app.revanced.manager.ui.viewmodel.MainViewModel
 import app.revanced.manager.ui.viewmodel.SelectedAppInfoViewModel
 import app.revanced.manager.util.EventEffect
+import app.revanced.manager.util.PM
 import app.revanced.manager.util.SupportedLocales
 import app.revanced.manager.util.deepLinkedComposable
 import app.revanced.manager.util.navigateSafe
 import app.revanced.manager.util.popBackStackSafe
 import app.revanced.manager.util.resetListItemColorsCached
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.io.File
 import java.util.Locale
 import org.koin.androidx.viewmodel.ext.android.getViewModel as getActivityViewModel
 
 class MainActivity : AppCompatActivity() {
+    private val pm: PM by inject()
+
     @ExperimentalAnimationApi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -106,6 +113,32 @@ class MainActivity : AppCompatActivity() {
                 ReVancedManager(vm)
             }
         }
+
+        handleGeneratedApkInstallIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleGeneratedApkInstallIntent(intent)
+    }
+
+    private fun handleGeneratedApkInstallIntent(intent: Intent?) {
+        if (intent?.action != ACTION_INSTALL_GENERATED_APK) return
+
+        val path = intent.getStringExtra(EXTRA_GENERATED_APK_PATH)
+        if (path.isNullOrBlank()) {
+            Log.w(TAG, "Generated APK install request did not include an APK path")
+            return
+        }
+
+        runCatching {
+            pm.installPackage(File(path))
+        }.onSuccess {
+            Log.i(TAG, "Requested foreground installation for generated APK: $path")
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to request foreground installation for generated APK: $path", error)
+        }
     }
 
     // fixes issue #2857 by preventing an empty locale
@@ -114,6 +147,12 @@ class MainActivity : AppCompatActivity() {
             overrideConfiguration.setLocale(SupportedLocales.getCurrentLocale() ?: Locale.getDefault())
         }
         super.applyOverrideConfiguration(overrideConfiguration)
+    }
+
+    companion object {
+        const val ACTION_INSTALL_GENERATED_APK = "app.revanced.manager.action.INSTALL_GENERATED_APK"
+        const val EXTRA_GENERATED_APK_PATH = "app.revanced.manager.extra.GENERATED_APK_PATH"
+        private const val TAG = "MainActivity"
     }
 }
 
@@ -235,7 +274,6 @@ private fun ReVancedManager(vm: MainViewModel) {
 
         composable<Update> {
             val data = it.toRoute<Update>()
-
             UpdateScreen(
                 onBackClick = navController::popBackStackSafe,
                 vm = koinViewModel {
@@ -250,9 +288,7 @@ private fun ReVancedManager(vm: MainViewModel) {
         composable<Announcements> {
             AnnouncementsScreen(
                 onBackClick = navController::popBackStack,
-                onAnnouncementClick = { announcement ->
-                    navController.navigateComplex(Announcement, announcement)
-                }
+                onAnnouncementClick = { announcement -> navController.navigateComplex(Announcement, announcement) }
             )
         }
 
@@ -266,41 +302,28 @@ private fun ReVancedManager(vm: MainViewModel) {
         navigation<SelectedApplicationInfo>(startDestination = SelectedApplicationInfo.Main) {
             composable<SelectedApplicationInfo.Main> {
                 val parentBackStackEntry = navController.navGraphEntry(it)
-                val data =
-                    parentBackStackEntry.getComplexArg<SelectedApplicationInfo.ViewModelParams>()
-                val viewModel =
-                    koinViewModel<SelectedAppInfoViewModel>(viewModelStoreOwner = parentBackStackEntry) {
-                        parametersOf(data)
-                    }
+                val data = parentBackStackEntry.getComplexArg<SelectedApplicationInfo.ViewModelParams>()
+                val viewModel = koinViewModel<SelectedAppInfoViewModel>(viewModelStoreOwner = parentBackStackEntry) {
+                    parametersOf(data)
+                }
 
                 SelectedAppInfoScreen(
                     onBackClick = navController::popBackStackSafe,
                     onPatchClick = {
                         it.lifecycleScope.launch {
-                            navController.navigateComplex(
-                                Patcher,
-                                viewModel.getPatcherParams()
-                            )
+                            navController.navigateComplex(Patcher, viewModel.getPatcherParams())
                         }
                     },
                     onPatchSelectorClick = { app, patches, options ->
                         navController.navigateComplex(
                             SelectedApplicationInfo.PatchesSelector,
-                            SelectedApplicationInfo.PatchesSelector.ViewModelParams(
-                                app,
-                                patches,
-                                options
-                            )
+                            SelectedApplicationInfo.PatchesSelector.ViewModelParams(app, patches, options)
                         )
                     },
                     onRequiredOptions = { app, patches, options ->
                         navController.navigateComplex(
                             SelectedApplicationInfo.RequiredOptions,
-                            SelectedApplicationInfo.PatchesSelector.ViewModelParams(
-                                app,
-                                patches,
-                                options
-                            )
+                            SelectedApplicationInfo.PatchesSelector.ViewModelParams(app, patches, options)
                         )
                     },
                     vm = viewModel
@@ -308,8 +331,7 @@ private fun ReVancedManager(vm: MainViewModel) {
             }
 
             composable<SelectedApplicationInfo.PatchesSelector> {
-                val data =
-                    it.getComplexArg<SelectedApplicationInfo.PatchesSelector.ViewModelParams>()
+                val data = it.getComplexArg<SelectedApplicationInfo.PatchesSelector.ViewModelParams>()
                 val selectedAppInfoVm = koinViewModel<SelectedAppInfoViewModel>(
                     viewModelStoreOwner = navController.navGraphEntry(it)
                 )
@@ -320,16 +342,13 @@ private fun ReVancedManager(vm: MainViewModel) {
                         selectedAppInfoVm.updateConfiguration(patches, options)
                         navController.popBackStackSafe()
                     },
-                    onBundleInfoClick = { uid ->
-                        navController.navigateSafe(BundleInformation(uid))
-                    },
+                    onBundleInfoClick = { uid -> navController.navigateSafe(BundleInformation(uid)) },
                     viewModel = koinViewModel { parametersOf(data) }
                 )
             }
 
             composable<SelectedApplicationInfo.RequiredOptions> {
-                val data =
-                    it.getComplexArg<SelectedApplicationInfo.PatchesSelector.ViewModelParams>()
+                val data = it.getComplexArg<SelectedApplicationInfo.PatchesSelector.ViewModelParams>()
                 val selectedAppInfoVm = koinViewModel<SelectedAppInfoViewModel>(
                     viewModelStoreOwner = navController.navGraphEntry(it)
                 )
@@ -339,10 +358,7 @@ private fun ReVancedManager(vm: MainViewModel) {
                     onContinue = { patches, options ->
                         selectedAppInfoVm.updateConfiguration(patches, options)
                         it.lifecycleScope.launch {
-                            navController.navigateComplex(
-                                Patcher,
-                                selectedAppInfoVm.getPatcherParams()
-                            )
+                            navController.navigateComplex(Patcher, selectedAppInfoVm.getPatcherParams())
                         }
                     },
                     vm = koinViewModel { parametersOf(data) }
@@ -352,10 +368,7 @@ private fun ReVancedManager(vm: MainViewModel) {
 
         navigation<Settings>(startDestination = Settings.Main) {
             deepLinkedComposable<Settings.Main>("settings") {
-                SettingsScreen(
-                    onBackClick = navController::popBackStackSafe,
-                    navigate = navController::navigateSafe
-                )
+                SettingsScreen(onBackClick = navController::popBackStackSafe, navigate = navController::navigateSafe)
             }
 
             deepLinkedComposable<Settings.General>("settings/general") {
@@ -373,7 +386,7 @@ private fun ReVancedManager(vm: MainViewModel) {
             deepLinkedComposable<Settings.Updates>("settings/updates") {
                 UpdatesSettingsScreen(
                     onBackClick = navController::popBackStackSafe,
-                    onChangelogClick = { navController.navigateComplex(Settings.Changelogs, ChangelogSource.Manager) },
+                    onChangelogClick = { source -> navController.navigateComplex(Settings.Changelogs, source) },
                     onUpdateClick = { navController.navigateSafe(Update()) }
                 )
             }
@@ -381,18 +394,13 @@ private fun ReVancedManager(vm: MainViewModel) {
             deepLinkedComposable<Settings.Downloads>("settings/downloads") {
                 DownloadsSettingsScreen(
                     onBackClick = navController::popBackStackSafe,
-                    onDownloaderClick = { uid ->
-                        navController.navigateSafe(Settings.DownloadersInfo(uid))
-                    }
+                    onDownloaderClick = { uid -> navController.navigateSafe(Settings.DownloadersInfo(uid)) }
                 )
             }
 
             composable<Settings.DownloadersInfo> {
                 val route = it.toRoute<Settings.DownloadersInfo>()
-                DownloaderInfoScreen(
-                    uid = route.uid,
-                    onBackClick = navController::popBackStackSafe
-                )
+                DownloaderInfoScreen(uid = route.uid, onBackClick = navController::popBackStackSafe)
             }
 
             deepLinkedComposable<Settings.ImportExport>("settings/import-export") {
@@ -400,10 +408,7 @@ private fun ReVancedManager(vm: MainViewModel) {
             }
 
             deepLinkedComposable<Settings.About>("about") {
-                AboutSettingsScreen(
-                    onBackClick = navController::popBackStackSafe,
-                    navigate = navController::navigateSafe
-                )
+                AboutSettingsScreen(onBackClick = navController::popBackStackSafe, navigate = navController::navigateSafe)
             }
 
             composable<Settings.Changelogs> {
@@ -418,7 +423,6 @@ private fun ReVancedManager(vm: MainViewModel) {
             composable<Settings.Licenses> {
                 LicensesSettingsScreen(onBackClick = navController::popBackStackSafe)
             }
-
         }
     }
 }
@@ -428,10 +432,7 @@ private fun NavController.navGraphEntry(entry: NavBackStackEntry) =
     remember(entry) { getBackStackEntry(entry.destination.parent!!.id) }
 
 // Androidx Navigation does not support storing complex types in route objects, so we have to store them inside the saved state handle of the back stack entry instead.
-private fun <T : Parcelable, R : ComplexParameter<T>> NavController.navigateComplex(
-    route: R,
-    data: T
-) {
+private fun <T : Parcelable, R : ComplexParameter<T>> NavController.navigateComplex(route: R, data: T) {
     if (currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED) {
         navigate(route)
         getBackStackEntry(route).savedStateHandle["args"] = data
