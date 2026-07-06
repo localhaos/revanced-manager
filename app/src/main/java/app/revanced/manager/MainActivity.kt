@@ -69,6 +69,7 @@ import app.revanced.manager.ui.theme.Theme
 import app.revanced.manager.ui.viewmodel.MainViewModel
 import app.revanced.manager.ui.viewmodel.SelectedAppInfoViewModel
 import app.revanced.manager.util.EventEffect
+import app.revanced.manager.util.GeneratedApkInstallHandler
 import app.revanced.manager.util.PM
 import app.revanced.manager.util.SupportedLocales
 import app.revanced.manager.util.deepLinkedComposable
@@ -114,30 +115,38 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        handleGeneratedApkInstallIntent(intent)
+        enqueueGeneratedApkFromIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleGeneratedApkInstallIntent(intent)
+        enqueueGeneratedApkFromIntent(intent)
     }
 
-    private fun handleGeneratedApkInstallIntent(intent: Intent?) {
-        if (intent?.action != ACTION_INSTALL_GENERATED_APK) return
+    override fun onResume() {
+        super.onResume()
+        drainGeneratedApkInstalls()
+    }
 
-        val path = intent.getStringExtra(EXTRA_GENERATED_APK_PATH)
-        if (path.isNullOrBlank()) {
-            Log.w(TAG, "Generated APK install request did not include an APK path")
-            return
-        }
-
+    private fun enqueueGeneratedApkFromIntent(intent: Intent?) {
+        val apk = GeneratedApkInstallHandler.fileFromIntent(intent) ?: return
         runCatching {
-            pm.installPackage(File(path))
-        }.onSuccess {
-            Log.i(TAG, "Requested foreground installation for generated APK: $path")
+            GeneratedApkInstallHandler.enqueue(apk)
         }.onFailure { error ->
-            Log.w(TAG, "Failed to request foreground installation for generated APK: $path", error)
+            Log.w(TAG, "Generated APK install request was rejected: ${apk.absolutePath}", error)
+        }
+    }
+
+    private fun drainGeneratedApkInstalls() {
+        GeneratedApkInstallHandler.drainPending().forEach { apk ->
+            runCatching {
+                pm.installPackage(apk)
+            }.onSuccess {
+                Log.i(TAG, "Requested foreground installation for generated APK: ${apk.absolutePath}")
+            }.onFailure { error ->
+                Log.w(TAG, "Failed to request foreground installation for generated APK: ${apk.absolutePath}", error)
+            }
         }
     }
 
@@ -150,8 +159,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        const val ACTION_INSTALL_GENERATED_APK = "app.revanced.manager.action.INSTALL_GENERATED_APK"
-        const val EXTRA_GENERATED_APK_PATH = "app.revanced.manager.extra.GENERATED_APK_PATH"
         private const val TAG = "MainActivity"
     }
 }
