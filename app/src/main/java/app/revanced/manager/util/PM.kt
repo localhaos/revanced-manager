@@ -150,30 +150,48 @@ class PM(
         require(canInstallPackages()) { "Package installation permission is not granted" }
 
         val uri = FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", apk)
-        val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-            data = uri
-            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-            putExtra(Intent.EXTRA_RETURN_RESULT, true)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val installIntent = createApkInstallIntent(uri, Intent.ACTION_INSTALL_PACKAGE)
+        val viewIntent = createApkInstallIntent(uri, Intent.ACTION_VIEW)
+
+        grantPackageInstallerReadAccess(uri, installIntent)
+        grantPackageInstallerReadAccess(uri, viewIntent)
+
+        val activityIntent = when {
+            installIntent.hasResolvedActivity() -> installIntent
+            viewIntent.hasResolvedActivity() -> viewIntent
+            else -> throw IllegalStateException("No package installer is available")
         }
 
-        grantPackageInstallerReadAccess(uri)
+        val chooser = Intent.createChooser(activityIntent, null).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(viewIntent, installIntent))
+        }
 
         try {
-            app.startActivity(intent)
+            app.startActivity(chooser)
         } catch (error: ActivityNotFoundException) {
             throw IllegalStateException("No package installer is available", error)
         }
     }
 
-    private fun grantPackageInstallerReadAccess(uri: Uri) {
-        val probeIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply { data = uri }
-        app.packageManager.queryIntentActivities(probeIntent, 0).forEach { resolveInfo ->
+    private fun createApkInstallIntent(uri: Uri, action: String) = Intent(action).apply {
+        setDataAndType(uri, APK_MIME_TYPE)
+        putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+        putExtra(Intent.EXTRA_RETURN_RESULT, true)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        clipData = android.content.ClipData.newUri(app.contentResolver, "APK", uri)
+    }
+
+    private fun grantPackageInstallerReadAccess(uri: Uri, intent: Intent) {
+        app.packageManager.queryIntentActivities(intent, 0).forEach { resolveInfo ->
             val packageName = resolveInfo.activityInfo?.packageName ?: return@forEach
             app.grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
+
+    private fun Intent.hasResolvedActivity() = resolveActivity(app.packageManager) != null
 
     fun launch(pkg: String) = app.packageManager.getLaunchIntentForPackage(pkg)?.let {
         it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -181,6 +199,10 @@ class PM(
     }
 
     fun canInstallPackages() = app.packageManager.canRequestPackageInstalls()
+
+    companion object {
+        private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
+    }
 }
 
 /**
