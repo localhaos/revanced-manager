@@ -3,4 +3,16 @@
     <files-path
         name="ui_ephemeral"
         path="ui_ephemeral/" />
+    <files-path
+        name="files_root"
+        path="." />
+    <cache-path
+        name="cache_root"
+        path="." />
+    <external-files-path
+        name="external_files_root"
+        path="." />
+    <external-cache-path
+        name="external_cache_root"
+        path="." />
 </paths>
