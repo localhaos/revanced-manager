@@ -1,6 +1,9 @@
 package app.revanced.manager.network.dto
 
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -31,9 +34,9 @@ data class GitHubRelease(
     val name: String? = null,
     val body: String? = null,
     @SerialName("published_at")
-    val publishedAt: LocalDateTime? = null,
+    val publishedAt: Instant? = null,
     @SerialName("created_at")
-    val createdAt: LocalDateTime,
+    val createdAt: Instant,
     val assets: List<GitHubReleaseAsset> = emptyList(),
 ) {
     fun toReVancedAsset(assetSelector: (GitHubReleaseAsset) -> Boolean = GitHubReleaseAsset::isPatchBundle): ReVancedAsset {
@@ -43,7 +46,7 @@ data class GitHubRelease(
 
         return ReVancedAsset(
             downloadUrl = asset.browserDownloadUrl,
-            createdAt = publishedAt ?: createdAt,
+            createdAt = (publishedAt ?: createdAt).toLocalDateTime(TimeZone.UTC),
             signatureDownloadUrl = assets.firstOrNull { it.name == "${asset.name}.asc" }?.browserDownloadUrl,
             description = body?.takeIf { it.isNotBlank() } ?: name ?: tagName,
             version = tagName,
