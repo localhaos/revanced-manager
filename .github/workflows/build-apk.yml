@@ -15,11 +15,16 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 env:
   ORG_GRADLE_PROJECT_org.gradle.daemon: 'false'
   ORG_GRADLE_PROJECT_org.gradle.jvmargs: '-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
   ORG_GRADLE_PROJECT_kotlin.daemon.jvm.options: '-Xmx2g'
+  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
