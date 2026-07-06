@@ -2,13 +2,16 @@ package app.revanced.manager.util
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager.NameNotFoundException
 import android.content.pm.PackageManager.PackageInfoFlags
+import android.net.Uri
 import android.os.Build
 import android.os.Parcelable
 import androidx.compose.runtime.Immutable
+import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import app.revanced.manager.domain.manager.PreferencesManager
 import app.revanced.manager.domain.repository.PatchBundleRepository
@@ -141,6 +144,37 @@ class PM(
         }.await()
     }
 
+    fun installPackage(apk: File) {
+        require(apk.exists() && apk.isFile) { "APK file does not exist: ${apk.absolutePath}" }
+        require(apk.extension.equals("apk", ignoreCase = true)) { "File is not an APK: ${apk.name}" }
+        require(canInstallPackages()) { "Package installation permission is not granted" }
+
+        val uri = FileProvider.getUriForFile(app, "${app.packageName}.fileprovider", apk)
+        val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+            data = uri
+            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+            putExtra(Intent.EXTRA_RETURN_RESULT, true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        grantPackageInstallerReadAccess(uri)
+
+        try {
+            app.startActivity(intent)
+        } catch (error: ActivityNotFoundException) {
+            throw IllegalStateException("No package installer is available", error)
+        }
+    }
+
+    private fun grantPackageInstallerReadAccess(uri: Uri) {
+        val probeIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply { data = uri }
+        app.packageManager.queryIntentActivities(probeIntent, 0).forEach { resolveInfo ->
+            val packageName = resolveInfo.activityInfo?.packageName ?: return@forEach
+            app.grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
     fun launch(pkg: String) = app.packageManager.getLaunchIntentForPackage(pkg)?.let {
         it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         app.startActivity(it)
@@ -155,4 +189,3 @@ class PM(
  */
 fun PackageInfo.isSplitApk(): Boolean =
     !applicationInfo?.splitSourceDirs.isNullOrEmpty() || !splitNames.isNullOrEmpty()
-
