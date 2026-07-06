@@ -10,8 +10,8 @@ on:
       - main
 
 concurrency:
-  group: build-apk-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-apk-${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
