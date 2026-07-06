@@ -3,9 +3,7 @@ package app.revanced.manager.domain.sources
 import app.revanced.manager.network.dto.GitHubRelease
 import app.revanced.manager.network.dto.GitHubReleaseAsset
 import app.revanced.manager.network.dto.ReVancedAsset
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.LocalDateTime
 
 /**
  * Resolves GitHub repository and release URLs into patch-bundle endpoints.
@@ -82,7 +80,7 @@ object GitHubBundleAutoFinder {
 
         return ReVancedAsset(
             downloadUrl = normalized,
-            createdAt = Clock.System.now().toLocalDateTime(TimeZone.UTC),
+            createdAt = directBundleCreatedAt,
             signatureDownloadUrl = null,
             description = "Direct ${kind.extension} patch bundle",
             version = tag,
@@ -122,6 +120,8 @@ object GitHubBundleAutoFinder {
         BundleKind.Morphe -> 1
         BundleKind.LegacyJar -> 2
     }
+
+    private val directBundleCreatedAt = LocalDateTime(1970, 1, 1, 0, 0)
 
     private val githubRepoRegex = Regex(
         pattern = "^https://github\\.com/([^/]+)/([^/#?]+)(?:[?#].*)?$",
