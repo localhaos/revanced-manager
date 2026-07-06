@@ -22,11 +22,20 @@ This document tracks the minimum runtime requirements for installing generated A
 - Read access is explicitly granted to every resolved installer activity before starting the installer.
 - The helper rejects missing files and non-APK file extensions before launching the installer.
 - The helper checks `PackageManager.canRequestPackageInstalls()` before launching the installer.
+- If install permission is missing, the helper opens Android's per-app unknown-sources settings for the manager package before reporting the missing permission.
 - `ActivityNotFoundException` is converted into a clear `IllegalStateException` when no package installer is available.
 - Patching now skips mounted-install root unmount when root access is not granted, avoiding the root-service Binder path in no-root mode.
 - Failed root unmount attempts are logged and skipped instead of failing the patch worker.
 - After signing the patched APK, `PatcherWorker` now requests no-root installation through `PM.installPackage(outputApk)` when root access is not granted.
 - If Android blocks installer launch from the worker or the install permission is missing, the patch result is kept and the failure is logged instead of deleting the generated APK.
+
+## Samsung S20 no-root notes
+
+- Use the normal package installer path, not mounted/root install.
+- First run usually requires enabling per-app installation permission: Settings -> Apps -> Special access -> Install unknown apps -> ReVanced Manager -> Allow from this source.
+- If this permission is missing, `PM.installPackage` now opens the matching settings screen through `Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES`.
+- If Samsung/Android blocks launching the installer from the background worker, retry installation from a foreground UI action or manually open the generated APK from the saved output path.
+- Updating an already installed app still requires Android signature compatibility. A patched APK signed with a different key cannot replace an existing package signed with another key without uninstalling the old package first.
 
 ## Build/runtime constraints
 
