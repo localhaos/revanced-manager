@@ -26,15 +26,16 @@ This document tracks the minimum runtime requirements for installing generated A
 - `ActivityNotFoundException` is converted into a clear `IllegalStateException` when no package installer is available.
 - Patching now skips mounted-install root unmount when root access is not granted, avoiding the root-service Binder path in no-root mode.
 - Failed root unmount attempts are logged and skipped instead of failing the patch worker.
-- After signing the patched APK, `PatcherWorker` now routes no-root installation through `MainActivity` using `ACTION_INSTALL_GENERATED_APK` and the generated APK path.
-- `MainActivity` handles `ACTION_INSTALL_GENERATED_APK` in `onCreate` and `onNewIntent`, then launches `PM.installPackage(apk)` from the foreground UI context.
+- After signing the patched APK, `PatcherWorker` now delegates no-root installation to `GeneratedApkInstallHandler`.
+- `GeneratedApkInstallHandler` validates and queues the generated APK, then requests `MainActivity` with `ACTION_INSTALL_GENERATED_APK`.
+- `MainActivity` enqueues APKs from incoming install intents and drains the install queue from `onResume`, so `PM.installPackage(apk)` runs from foreground activity lifecycle.
 - If Android blocks opening the foreground activity from the worker, the patch result is kept and the failure is logged instead of deleting the generated APK.
 
 ## FlipperDroid comparison
 
 - `localhaos/FlipperDroid` does not contain a custom APK installer flow; it is installed by Android as a normal app.
 - The useful pattern from FlipperDroid is the simple foreground `MainActivity` entry point.
-- ReVanced Manager now follows that pattern for generated APK installation: worker finishes patch/sign, then foreground `MainActivity` performs the installer handoff.
+- ReVanced Manager now follows that pattern through `GeneratedApkInstallHandler`: worker finishes patch/sign, then foreground `MainActivity` performs the installer handoff.
 
 ## Samsung S20 no-root notes
 
