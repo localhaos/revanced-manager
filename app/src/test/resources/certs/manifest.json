@@ -1,0 +1,62 @@
+[
+  {
+    "file": "asks_update.x509.pem",
+    "source": "otacerts.zip",
+    "source_entry": "build/target/product/security/asks_update.x509.pem",
+    "sha256": "4412f5fabf190da113d326f923feaefbc40246f49ee9d99f1791b099a5577448",
+    "subject": "C=KR, ST=South Korea, L=Suwon City, O=Samsung Electronics, OU=Samsung Mobile, CN=Samsung OTA SIGNER",
+    "issuer": "C=KR, ST=South Korea, L=Suwon City, O=Samsung Electronics, OU=Samsung Mobile, CN=Samsung OTA INTER",
+    "serial": "015D05E0EB2F",
+    "not_before": "Jul  3 00:36:52 2017 GMT",
+    "not_after": "Jul  2 15:00:00 2117 GMT",
+    "sha256_fingerprint": "B7:31:57:8C:25:3C:65:E3:50:65:3E:7E:1D:C5:A2:6F:41:72:89:FC:FF:17:BC:45:6D:46:6E:80:61:74:78:F2"
+  },
+  {
+    "file": "asks_update_256.x509.pem",
+    "source": "otacerts.zip",
+    "source_entry": "build/target/product/security/asks_update_256.x509.pem",
+    "sha256": "507f498e9da4a9efafa687400c2637fdfe664f2196cd07b2de500e9a1017de2a",
+    "subject": "CN=ASKS OTA SIGNER-256, OU=Mobile Communications Business, O=Samsung Electronics Co.Ltd., L=Suwon City, ST=Republic of Korea, C=KR",
+    "issuer": "CN=ASKS OTA SIGNER-256, OU=Mobile Communications Business, O=Samsung Electronics Co.Ltd., L=Suwon City, ST=Republic of Korea, C=KR",
+    "serial": "016E5A34A920",
+    "not_before": "Nov 11 11:23:50 2019 GMT",
+    "not_after": "Nov 10 15:00:00 2119 GMT",
+    "sha256_fingerprint": "95:8F:D7:7E:6C:C1:9A:F9:4D:FA:AB:7C:9C:80:46:FE:58:D9:2A:63:C8:9A:21:2B:01:E2:FA:45:A1:E8:1B:7B"
+  },
+  {
+    "file": "ota_for_policy.x509.pem",
+    "source": "askscerts.zip",
+    "source_entry": "ota_for_policy.x509.pem",
+    "sha256": "1ceca993b3bd9f5303fa85f741c6cf8c79a29496209ac753888a29a4a83d221c",
+    "subject": "C=KR, ST=Republic of Korea, L=Suwon City, O=Samsung Electronics Co. Ltd., OU=Mobile Communications Business, CN=Samsung Security Policy",
+    "issuer": "C=KR, ST=Republic of Korea, L=Suwon City, O=Samsung Electronics Co. Ltd., OU=Mobile Communications Business, CN=Samsung Security Policy",
+    "serial": "0190BA927D17",
+    "not_before": "Jul 16 08:04:40 2024 GMT",
+    "not_after": "Jul 15 15:00:00 2054 GMT",
+    "sha256_fingerprint": "6D:24:00:DC:C3:7C:F1:69:15:E8:56:FA:FD:4B:85:DA:50:A4:7F:5C:9D:C3:BA:D1:25:C4:AA:5D:E9:88:F9:1C"
+  },
+  {
+    "file": "ota_for_policy_2.x509.pem",
+    "source": "askscerts.zip",
+    "source_entry": "ota_for_policy_2.x509.pem",
+    "sha256": "edda57824de3e4a1b46f7998b6d8a8c0a96111c8dab2454467f91c2c5f5b921d",
+    "subject": "C=KR, ST=Republic of Korea, L=Suwon City, O=Samsung Electronics Co. Ltd., OU=Mobile Communications Business, CN=Samsung Security Policy 2",
+    "issuer": "C=KR, ST=Republic of Korea, L=Suwon City, O=Samsung Electronics Co. Ltd., OU=Mobile Communications Business, CN=Samsung Security Policy 2",
+    "serial": "019120D52E1E",
+    "not_before": "Aug  5 04:38:47 2024 GMT",
+    "not_after": "Aug  4 15:00:00 2054 GMT",
+    "sha256_fingerprint": "87:9E:0B:CC:0E:91:F8:CE:DB:06:53:4C:A4:87:50:11:58:F3:CA:23:EF:2D:71:26:A2:11:83:56:EA:A1:F2:D0"
+  },
+  {
+    "file": "fsverity-release.x509.pem",
+    "source": "fsverity-release.x509.der.crt",
+    "source_entry": "fsverity-release.x509.der.crt",
+    "sha256": "41162143264a9d0a29a4cb94ad57ec572ce90fda13f8bcdeae6db64fef2ddcb2",
+    "subject": "C=US, ST=California, L=Mountain View, O=Google Inc., OU=Android, CN=Android",
+    "issuer": "C=US, ST=California, L=Mountain View, O=Google Inc., OU=Android, CN=Android",
+    "serial": "140AA5915F6FA91A2D2B1B44DA7C2D108C91D413",
+    "not_before": "Mar 20 19:51:58 2020 GMT",
+    "not_after": "Mar 20 19:51:58 2050 GMT",
+    "sha256_fingerprint": "9F:97:31:5D:A5:EC:FF:D9:5B:78:C1:EE:B2:1D:3B:3C:27:1B:C3:0D:AB:61:C0:FA:74:2C:89:E6:20:BE:AC:7D"
+  }
+]
