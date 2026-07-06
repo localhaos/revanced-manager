@@ -16,7 +16,10 @@ plugins {
     signing
 }
 
-val outputApkFileName = "${rootProject.name}-$version.apk"
+val managerVersionName = providers.gradleProperty("managerVersion")
+    .orElse(providers.provider { if (version == "unspecified") "1.0.0" else version.toString() })
+val managerBuildLabel = providers.gradleProperty("managerBuildLabel").orElse(managerVersionName)
+val outputApkFileName = "${rootProject.name}-${managerBuildLabel.get()}.apk"
 
 dependencies {
     // AndroidX Core
@@ -153,7 +156,7 @@ android {
             version = release(36)
         }
 
-        val versionStr = if (version == "unspecified") "1.0.0" else version.toString()
+        val versionStr = managerVersionName.get()
         versionName = versionStr
         versionCode = with(versionStr.toVersion()) {
             major * 100_000_000 +
