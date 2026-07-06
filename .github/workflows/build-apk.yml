@@ -17,10 +17,9 @@ permissions:
   contents: read
 
 env:
-  GRADLE_OPTS: >-
-    -Dorg.gradle.daemon=false
-    -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
-    -Dkotlin.daemon.jvm.options=-Xmx2g
+  ORG_GRADLE_PROJECT_org.gradle.daemon: 'false'
+  ORG_GRADLE_PROJECT_org.gradle.jvmargs: '-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
+  ORG_GRADLE_PROJECT_kotlin.daemon.jvm.options: '-Xmx2g'
 
 jobs:
   build:
@@ -46,8 +45,19 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Print build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -version
+          ./gradlew --version
+          git rev-parse HEAD
+
       - name: Build release APK
-        run: ./gradlew --no-daemon --stacktrace --warning-mode all assembleRelease -PsignAsDebug
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace --info --warning-mode all clean :app:assembleRelease -PsignAsDebug
 
       - name: Collect build outputs
         if: always()
@@ -58,7 +68,7 @@ jobs:
           find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
           find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
           find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
-          find artifacts -type f -maxdepth 5 -print | sort
+          find artifacts -maxdepth 6 -type f -print | sort
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
