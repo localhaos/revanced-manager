@@ -147,7 +147,7 @@ class PatcherWorker(
             if (args.input is SelectedApp.Installed) {
                 installedAppRepository.get(args.packageName)?.let {
                     if (it.installType == InstallType.MOUNT) {
-                        rootInstaller.unmount(args.packageName)
+                        safelyUnmountMountedInstall(args.packageName)
                     }
                 }
             }
@@ -273,6 +273,19 @@ class PatcherWorker(
             if (args.input is SelectedApp.Local && args.input.temporary && Shell.isAppGrantedRoot() == false) {
                 args.input.file.delete()
             }
+        }
+    }
+
+    private suspend fun safelyUnmountMountedInstall(packageName: String) {
+        if (!rootInstaller.hasRootAccess()) {
+            Log.i(tag, "Skipping root unmount for $packageName because root access is not granted.".logFmt())
+            return
+        }
+
+        runCatching {
+            rootInstaller.unmount(packageName)
+        }.onFailure { error ->
+            Log.w(tag, "Skipping failed root unmount for $packageName.".logFmt(), error)
         }
     }
 
