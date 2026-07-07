@@ -29,6 +29,16 @@ jobs:
               with:
                   fetch-depth: 0
 
+            - name: Verify release checkout
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  test "${{ github.repository }}" = "localhaos/revanced-manager"
+                  git rev-parse HEAD
+                  test -f app/src/main/java/app/revanced/manager/util/GeneratedApkInstallHandler.kt
+                  test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+                  test -f docs/patch-bundle-sources.md
+
             - name: Setup Java
               uses: actions/setup-java@v5
               with:
@@ -37,6 +47,10 @@ jobs:
 
             - name: Cache Gradle
               uses: burrunan/gradle-cache-action@v3
+
+            - name: Setup keystore
+              run: |
+                  echo "${{ secrets.KEYSTORE }}" | base64 --decode > "app/keystore.jks"
 
             - name: Build
               env:
@@ -84,10 +98,6 @@ jobs:
                   git config --global tag.gpgsign false
                   gpg --batch --list-secret-keys --keyid-format LONG
                   echo "Generated fallback GPG fingerprint: $fingerprint"
-
-            - name: Setup keystore
-              run: |
-                  echo "${{ secrets.KEYSTORE }}" | base64 --decode > "app/keystore.jks"
 
             - name: Release API
               run: npx multi-semantic-release --debug --tag-format 'api@${version}' --ignore-packages app
