@@ -89,68 +89,81 @@ private data class OnlinePatchSource(
     val url: String
 )
 
-private val onlinePatchSources = listOf(
+private fun githubReleaseSources(displayName: String, repo: String, description: String) = listOf(
     OnlinePatchSource(
-        name = "ReVanced official patches",
-        description = "Official ReVanced latest release API source",
-        url = "https://api.github.com/repos/ReVanced/revanced-patches/releases/latest"
+        name = displayName,
+        description = "$description • latest release API",
+        url = "https://api.github.com/repos/$repo/releases/latest"
     ),
     OnlinePatchSource(
-        name = "ReVanced official patches releases",
-        description = "Official ReVanced releases list API source",
-        url = "https://api.github.com/repos/ReVanced/revanced-patches/releases"
-    ),
-    OnlinePatchSource(
-        name = "RVX patches",
-        description = "inotia00 latest release API source",
-        url = "https://api.github.com/repos/inotia00/revanced-patches/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "RVX patches releases",
-        description = "inotia00 releases list API source",
-        url = "https://api.github.com/repos/inotia00/revanced-patches/releases"
-    ),
-    OnlinePatchSource(
-        name = "Anddea patches",
-        description = "anddea latest release API source",
-        url = "https://api.github.com/repos/anddea/revanced-patches/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "Anddea patches releases",
-        description = "anddea releases list API source",
-        url = "https://api.github.com/repos/anddea/revanced-patches/releases"
-    ),
-    OnlinePatchSource(
-        name = "ReX patches",
-        description = "YT-Advanced ReX latest release API source",
-        url = "https://api.github.com/repos/YT-Advanced/ReX-patches/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "ReX patches releases",
-        description = "YT-Advanced ReX releases list API source",
-        url = "https://api.github.com/repos/YT-Advanced/ReX-patches/releases"
-    ),
-    OnlinePatchSource(
-        name = "Morphe patches",
-        description = "Morphe latest release API source candidate",
-        url = "https://api.github.com/repos/Morphe-Project/revanced-patches/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "Morphe patches releases",
-        description = "Morphe releases list API source candidate",
-        url = "https://api.github.com/repos/Morphe-Project/revanced-patches/releases"
-    ),
-    OnlinePatchSource(
-        name = "J-HC patches",
-        description = "j-hc latest release API source candidate",
-        url = "https://api.github.com/repos/j-hc/revanced-patches/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "J-HC patches releases",
-        description = "j-hc releases list API source candidate",
-        url = "https://api.github.com/repos/j-hc/revanced-patches/releases"
+        name = "$displayName releases",
+        description = "$description • releases list API",
+        url = "https://api.github.com/repos/$repo/releases"
     )
 )
+
+private val onlinePatchSources = listOf(
+    githubReleaseSources(
+        displayName = "ReVanced official patches",
+        repo = "ReVanced/revanced-patches",
+        description = "Official ReVanced patch bundle source"
+    ),
+    githubReleaseSources(
+        displayName = "RVX patches",
+        repo = "inotia00/revanced-patches",
+        description = "inotia00/RVX patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "Anddea patches",
+        repo = "anddea/revanced-patches",
+        description = "anddea patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "ReX patches",
+        repo = "YT-Advanced/ReX-patches",
+        description = "YT-Advanced/ReX patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "Morphe patches",
+        repo = "Morphe-Project/revanced-patches",
+        description = "Morphe patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "J-HC patches",
+        repo = "j-hc/revanced-patches",
+        description = "j-hc patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "Rufusin patches",
+        repo = "rufusin/revanced-patches",
+        description = "rufusin patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "NoName-exe patches",
+        repo = "NoName-exe/revanced-patches",
+        description = "NoName-exe patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "Kitadai31 patches",
+        repo = "kitadai31/revanced-patches-android6-7",
+        description = "Android 6/7 patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "ReVanced Extended patches mirror",
+        repo = "ReVanced-Extended-Community/rvx-builder",
+        description = "community RVX related release source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "LocalHaos patches",
+        repo = "localhaos/revanced-patches",
+        description = "LocalHaos patch bundle source candidate"
+    ),
+    githubReleaseSources(
+        displayName = "LocalHaos Manager releases",
+        repo = "localhaos/revanced-manager",
+        description = "LocalHaos release source candidate for testing parser"
+    )
+).flatten()
 
 @OptIn(
     ExperimentalMaterial3Api::class,
