@@ -20,7 +20,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "printf 'version = ${nextRelease.version}\\n' > gradle.properties && ../gradlew --no-daemon --stacktrace --info :app:assembleRelease -PsignAsDebug -PmanagerVersion=${nextRelease.version} -PmanagerBuildLabel=v${nextRelease.version}"
+        "prepareCmd": "printf 'version = ${nextRelease.version}\\n' > gradle.properties && ../gradlew --no-daemon --stacktrace :app:assembleRelease -PsignAsDebug -PmanagerVersion=${nextRelease.version} -PmanagerBuildLabel=v${nextRelease.version}"
       }
     ],
     [
