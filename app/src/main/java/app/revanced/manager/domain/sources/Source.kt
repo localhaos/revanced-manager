@@ -97,4 +97,3 @@ private fun String?.cleanPatchVersion(): String? = this
     ?.trim()
     ?.removePrefix("v")
     ?.takeUnless { value -> value.isBlank() || value.equals("null", ignoreCase = true) }
-}
