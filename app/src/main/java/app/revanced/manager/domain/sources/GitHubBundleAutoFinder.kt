@@ -13,13 +13,14 @@ import kotlinx.datetime.LocalDateTime
  * - https://github.com/owner/repo/releases
  * - https://github.com/owner/repo/releases/latest
  * - https://github.com/owner/repo/releases/tag/<tag>
+ * - https://api.github.com/repos/owner/repo/releases
  * - https://api.github.com/repos/owner/repo/releases/latest
  * - https://api.github.com/repos/owner/repo/releases/tags/<tag>
  * - direct URLs ending with .rvp, .mpp or .jar
  *
  * Notes:
  * - https://morphe-patches.software/ is a human-facing community index, not a direct bundle endpoint.
- *   Use an actual .mpp/.rvp/.jar URL from that index when bundles are available.
+ *   Use an actual .mpp, .rvp or .jar URL from that index when bundles are available.
  */
 object GitHubBundleAutoFinder {
     enum class BundleKind(val extension: String) {
@@ -48,6 +49,13 @@ object GitHubBundleAutoFinder {
         if (normalized.isBlank()) return null
         if (isMorphePatchIndex(normalized)) return null
 
+        githubApiReleaseListRegex.matchEntire(normalized)?.let { match ->
+            val owner = match.groupValues[1]
+            val repo = match.groupValues[2]
+            val releaseRef = "latest"
+            return Candidate(owner, repo, releaseRef, githubReleaseApi(owner, repo, releaseRef), normalized)
+        }
+
         githubApiReleaseRegex.matchEntire(normalized)?.let { match ->
             val owner = match.groupValues[1]
             val repo = match.groupValues[2]
@@ -73,14 +81,31 @@ object GitHubBundleAutoFinder {
         return null
     }
 
+    fun displayNameFrom(input: String): String? {
+        val normalized = input.trim().trimEnd('/')
+        val candidate = candidateFrom(normalized)
+        if (candidate != null) return candidate.repo
+            .removeSuffix("-patches")
+            .replace('-', ' ')
+            .replace('_', ' ')
+            .replaceFirstChar { it.uppercaseChar() }
+            .let { "${candidate.owner}/$it" }
+
+        return directAssetFromOrNull(normalized)?.version
+    }
+
     fun directAssetFrom(input: String): ReVancedAsset? {
-        val normalized = input.trim()
-        if (isMorphePatchIndex(normalized)) {
+        if (isMorphePatchIndex(input)) {
             throw IllegalArgumentException(
                 "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp or .jar bundle URL."
             )
         }
 
+        return directAssetFromOrNull(input)
+    }
+
+    private fun directAssetFromOrNull(input: String): ReVancedAsset? {
+        val normalized = input.trim()
         val assetName = normalized.substringAfterLast('/').substringBefore('?').substringBefore('#')
         val kind = assetName.bundleKind() ?: return null
         if (!directBundleRegex.matches(normalized)) return null
@@ -143,6 +168,11 @@ object GitHubBundleAutoFinder {
 
     private val githubWebReleaseRegex = Regex(
         pattern = "^https://github\\.com/([^/]+)/([^/]+)/(?:releases(?:/(latest|tag/[^?#]+))?)(?:[?#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val githubApiReleaseListRegex = Regex(
+        pattern = "^https://api\\.github\\.com/repos/([^/]+)/([^/]+)/releases(?:[?#].*)?$",
         option = RegexOption.IGNORE_CASE,
     )
 
