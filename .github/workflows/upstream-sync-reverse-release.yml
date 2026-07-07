@@ -3,14 +3,6 @@ name: Upstream Sync Reverse Release
 on:
   workflow_dispatch:
     inputs:
-      upstream_repo:
-        description: Upstream repository
-        required: true
-        default: ReVanced/revanced-manager
-      upstream_branch:
-        description: Upstream branch
-        required: true
-        default: main
       release_tag:
         description: Release tag to create or update
         required: true
@@ -19,10 +11,6 @@ on:
         description: Release title
         required: true
         default: Reverse 2.1.5 LocalHaos
-      push_synced_main:
-        description: Push merged upstream sync back to main
-        required: true
-        default: 'true'
   push:
     branches:
       - main
@@ -42,14 +30,16 @@ env:
   ORG_GRADLE_PROJECT_org.gradle.daemon: 'false'
   ORG_GRADLE_PROJECT_org.gradle.jvmargs: '-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
   ORG_GRADLE_PROJECT_kotlin.daemon.jvm.options: '-Xmx2g'
+  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
   GITHUB_ACTOR: ${{ github.actor }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   sync-build-release:
-    name: Sync upstream, build and publish
+    name: Build and publish LocalHaos APK
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
 
     steps:
       - name: Checkout local fork
@@ -58,68 +48,26 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve sync metadata
+      - name: Resolve release metadata
         shell: bash
         run: |
           set -euo pipefail
-          echo "UPSTREAM_REPO=${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}" >> "$GITHUB_ENV"
-          echo "UPSTREAM_BRANCH=${{ github.event.inputs.upstream_branch || 'main' }}" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=${{ github.event.inputs.release_tag || 'v2.1.5-localhaos' }}" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=${{ github.event.inputs.release_name || 'Reverse 2.1.5 LocalHaos' }}" >> "$GITHUB_ENV"
-          echo "PUSH_SYNCED_MAIN=${{ github.event.inputs.push_synced_main || 'true' }}" >> "$GITHUB_ENV"
 
-      - name: Configure git
+      - name: Verify LocalHaos checkout
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote remove upstream >/dev/null 2>&1 || true
-          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git remote -v
-
-      - name: Fetch and merge upstream
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch upstream "$UPSTREAM_BRANCH" --tags
-          before_sha="$(git rev-parse HEAD)"
-          upstream_sha="$(git rev-parse "upstream/$UPSTREAM_BRANCH")"
-          echo "LOCAL_BEFORE_SHA=$before_sha" >> "$GITHUB_ENV"
-          echo "UPSTREAM_SHA=$upstream_sha" >> "$GITHUB_ENV"
-          if git merge --no-edit -X ours "upstream/$UPSTREAM_BRANCH"; then
-            echo "UPSTREAM_MERGE_STATUS=merged" >> "$GITHUB_ENV"
-          else
-            git status --short
-            git merge --abort || true
-            echo "UPSTREAM_MERGE_STATUS=conflict" >> "$GITHUB_ENV"
-            exit 2
-          fi
-          after_sha="$(git rev-parse HEAD)"
-          echo "LOCAL_AFTER_MERGE_SHA=$after_sha" >> "$GITHUB_ENV"
-
-      - name: Re-assert LocalHaos independent version files
-        shell: bash
-        run: |
-          set -euo pipefail
+          test "${{ github.repository }}" = "localhaos/revanced-manager"
+          git rev-parse HEAD
           test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
           grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          printf 'version = 2.1.5-localhaos\n' > app/gradle.properties
-          git add app/gradle.properties
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: assert LocalHaos 2.1.5 release version"
-          fi
-
-      - name: Push synced main
-        if: ${{ env.PUSH_SYNCED_MAIN == 'true' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git push origin HEAD:main
+          grep -R "version = 2.1.5-localhaos" app/gradle.properties
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -148,11 +96,9 @@ jobs:
           test -n "$(find artifacts/apk -type f -name '*.apk' -print -quit)"
           {
             echo "repository=${{ github.repository }}"
-            echo "base_upstream_repo=$UPSTREAM_REPO"
-            echo "base_upstream_branch=$UPSTREAM_BRANCH"
-            echo "local_before_sha=$LOCAL_BEFORE_SHA"
-            echo "upstream_sha=$UPSTREAM_SHA"
-            echo "local_after_merge_sha=$(git rev-parse HEAD)"
+            echo "ref=${{ github.ref }}"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "run_id=${{ github.run_id }}"
             echo "release_tag=$RELEASE_TAG"
             echo "release_name=$RELEASE_NAME"
             echo "version=2.1.5-localhaos"
@@ -188,6 +134,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -f "$RELEASE_TAG" "$(git rev-parse HEAD)"
           git push origin "refs/tags/$RELEASE_TAG" --force
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
