@@ -60,13 +60,11 @@ class PatchBundleRepository(
 
     override fun loadEntity(entity: PatchBundleEntity): PatchBundleSource = with(entity) {
         val file = directoryOf(uid).resolve("patches.jar")
-        val actualName = entity.name.ifEmpty {
-            when (val sourceInfo = source) {
-                is SourceInfo.API -> app.getString(R.string.patches_name_default)
-                is SourceInfo.Local -> app.getString(R.string.source_name_fallback)
-                is SourceInfo.Remote -> GitHubBundleAutoFinder.displayNameFrom(sourceInfo.url.toString())
-                    ?: app.getString(R.string.source_name_fallback)
-            }
+        val actualName = entity.name.cleanStoredName() ?: when (val sourceInfo = source) {
+            is SourceInfo.API -> app.getString(R.string.patches_name_default)
+            is SourceInfo.Local -> app.getString(R.string.source_name_fallback)
+            is SourceInfo.Remote -> GitHubBundleAutoFinder.displayNameFrom(sourceInfo.url.toString())
+                ?: app.getString(R.string.source_name_fallback)
         }
 
         val releasedAt = entity.releasedAt?.let {
@@ -126,12 +124,7 @@ class PatchBundleRepository(
     val bundleInfoFlow = store.state.map { it.data }
 
     fun scopedBundleInfoFlow(packageName: String, version: String?) = bundleInfoFlow.map {
-        it.mapNotNull { (_, bundleInfo) ->
-            bundleInfo.forPackage(
-                packageName,
-                version
-            ).takeIf { scoped -> scoped.patches.isNotEmpty() }
-        }
+        it.values.map { bundleInfo -> bundleInfo.forPackage(packageName, version) }
     }
 
     val patchCountsFlow = bundleInfoFlow.map { it.mapValues { (_, info) -> info.patches.size } }
@@ -233,5 +226,15 @@ class PatchBundleRepository(
 
             return null
         }
+
+        private fun String?.cleanStoredName(): String? = this
+            ?.trim()
+            ?.takeUnless { value ->
+                value.isBlank() ||
+                        value.equals("null", ignoreCase = true) ||
+                        value.equals("vnull", ignoreCase = true) ||
+                        value.equals("Bez nazwy", ignoreCase = true) ||
+                        value.equals("No name", ignoreCase = true)
+            }
     }
 }
