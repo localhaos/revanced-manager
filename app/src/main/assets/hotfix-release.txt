@@ -18,3 +18,4 @@ Included changes:
 
 Release trigger:
 - publish or refresh v2.1.0 through Reverse 2.1 Release workflow
+- yaml syntax fixed before this trigger
