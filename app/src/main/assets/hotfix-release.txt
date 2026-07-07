@@ -1,4 +1,4 @@
-Reverse 2.1 release marker.
+Reverse 2.1.1 release marker.
 
 Included changes:
 - localhaos GitHub manager update source
@@ -17,8 +17,6 @@ Included changes:
 - source display wrapper helpers
 
 Release trigger:
-- publish or refresh v2.1.0 through Reverse 2.1 Release workflow
-- yaml syntax fixed before this trigger
-- upstream fork sync from ReVanced/revanced-manager requested
-- upstream file refresh requested
-- official upstream ReVanced sync requested
+- publish v2.1.1-localhaos through Upstream Sync Reverse Release workflow
+- official upstream ReVanced sync checked
+- independent LocalHaos APK release requested
