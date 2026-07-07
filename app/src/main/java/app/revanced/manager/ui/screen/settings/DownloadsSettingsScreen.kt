@@ -57,6 +57,7 @@ import app.revanced.manager.data.room.apps.downloaded.DownloadedApp
 import app.revanced.manager.domain.sources.Extensions.asRemoteOrNull
 import app.revanced.manager.domain.sources.Source
 import app.revanced.manager.domain.sources.Source.State
+import app.revanced.manager.domain.sources.displayName
 import app.revanced.manager.network.downloader.DownloaderPackage
 import app.revanced.manager.patcher.patch.PatchBundle
 import app.revanced.manager.ui.component.BottomContentBar
@@ -89,81 +90,115 @@ private data class OnlinePatchSource(
     val url: String
 )
 
-private fun githubReleaseSources(displayName: String, repo: String, description: String) = listOf(
-    OnlinePatchSource(
-        name = displayName,
-        description = "$description • latest release API",
-        url = "https://api.github.com/repos/$repo/releases/latest"
-    ),
-    OnlinePatchSource(
-        name = "$displayName releases",
-        description = "$description • releases list API",
-        url = "https://api.github.com/repos/$repo/releases"
-    )
+private fun jmanPatchBundleSource(
+    displayName: String,
+    directory: String,
+    fileName: String,
+    description: String,
+) = OnlinePatchSource(
+    name = "Jman/$displayName",
+    description = "$description • generated bundle JSON",
+    url = "https://raw.githubusercontent.com/Jman-Github/ReVanced-Patch-Bundles/bundles/patch-bundles/$directory/$fileName.json"
 )
 
 private val onlinePatchSources = listOf(
-    githubReleaseSources(
-        displayName = "ReVanced official patches",
-        repo = "ReVanced/revanced-patches",
-        description = "Official ReVanced patch bundle source"
+    jmanPatchBundleSource(
+        displayName = "ReVanced latest",
+        directory = "revanced-patch-bundles",
+        fileName = "revanced-latest-patches-bundle",
+        description = "Official ReVanced API v4 bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "RVX patches",
-        repo = "inotia00/revanced-patches",
-        description = "inotia00/RVX patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "ReVanced dev",
+        directory = "revanced-patch-bundles",
+        fileName = "revanced-dev-patches-bundle",
+        description = "Official ReVanced prerelease bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "Anddea patches",
-        repo = "anddea/revanced-patches",
-        description = "anddea patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Inotia00 latest",
+        directory = "inotia00-patch-bundles",
+        fileName = "inotia00-latest-patches-bundle",
+        description = "inotia00/RVX API v4 bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "ReX patches",
-        repo = "YT-Advanced/ReX-patches",
-        description = "YT-Advanced/ReX patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Inotia00 stable",
+        directory = "inotia00-patch-bundles",
+        fileName = "inotia00-stable-patches-bundle",
+        description = "inotia00/RVX stable bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "Morphe patches",
-        repo = "Morphe-Project/revanced-patches",
-        description = "Morphe patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Inotia00 dev",
+        directory = "inotia00-patch-bundles",
+        fileName = "inotia00-dev-patches-bundle",
+        description = "inotia00/RVX prerelease bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "J-HC patches",
-        repo = "j-hc/revanced-patches",
-        description = "j-hc patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "ReX latest",
+        directory = "rex-patch-bundles",
+        fileName = "rex-latest-patches-bundle",
+        description = "YT-Advanced/ReX API v4 bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "Rufusin patches",
-        repo = "rufusin/revanced-patches",
-        description = "rufusin patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Anddea latest",
+        directory = "anddea-patch-bundles",
+        fileName = "anddea-latest-patches-bundle",
+        description = "Anddea bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "NoName-exe patches",
-        repo = "NoName-exe/revanced-patches",
-        description = "NoName-exe patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Piko latest",
+        directory = "piko-patch-bundles",
+        fileName = "piko-latest-patches-bundle",
+        description = "Piko bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "Kitadai31 patches",
-        repo = "kitadai31/revanced-patches-android6-7",
-        description = "Android 6/7 patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "Kitadai31 latest",
+        directory = "kitadai31-patch-bundles",
+        fileName = "kitadai31-latest-patches-bundle",
+        description = "Android 6/7 bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "ReVanced Extended patches mirror",
-        repo = "ReVanced-Extended-Community/rvx-builder",
-        description = "community RVX related release source candidate"
+    jmanPatchBundleSource(
+        displayName = "Rufusin latest",
+        directory = "rufusin-patch-bundles",
+        fileName = "rufusin-latest-patches-bundle",
+        description = "Rufusin bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "LocalHaos patches",
-        repo = "localhaos/revanced-patches",
-        description = "LocalHaos patch bundle source candidate"
+    jmanPatchBundleSource(
+        displayName = "MTGA latest",
+        directory = "mtga-patch-bundles",
+        fileName = "mtga-latest-patches-bundle",
+        description = "MTGA bundle tracked by Jman catalog"
     ),
-    githubReleaseSources(
-        displayName = "LocalHaos Manager releases",
-        repo = "localhaos/revanced-manager",
-        description = "LocalHaos release source candidate for testing parser"
+    jmanPatchBundleSource(
+        displayName = "Privacy latest",
+        directory = "privacy-patch-bundles",
+        fileName = "privacy-latest-patches-bundle",
+        description = "Privacy bundle tracked by Jman catalog"
+    ),
+    jmanPatchBundleSource(
+        displayName = "Experimental latest",
+        directory = "experimental-patch-bundles",
+        fileName = "experimental-latest-patches-bundle",
+        description = "Experimental bundle tracked by Jman catalog"
+    ),
+    jmanPatchBundleSource(
+        displayName = "ProGuard latest",
+        directory = "proguard-patch-bundles",
+        fileName = "proguard-latest-patches-bundle",
+        description = "Morphe-compatible ProGuard bundle tracked by Jman catalog"
+    ),
+    jmanPatchBundleSource(
+        displayName = "Lain latest",
+        directory = "lain-patch-bundles",
+        fileName = "lain-latest-patches-bundle",
+        description = "Morphe-compatible Lain bundle tracked by Jman catalog"
+    ),
+    jmanPatchBundleSource(
+        displayName = "Edge Morphe latest",
+        directory = "edge-morphe-patch-bundles",
+        fileName = "edge-morphe-latest-patches-bundle",
+        description = "Morphe-compatible Edge bundle tracked by Jman catalog"
     )
-).flatten()
+)
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -371,7 +406,6 @@ private fun rememberSelectedListState(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DownloadersTabContent(
     sources: Map<Int, Source<DownloaderPackage>>,
@@ -454,7 +488,7 @@ private fun AppsTabContent(
     downloadedApps: List<DownloadedApp>,
     listState: LazyListState,
     appSelection: Set<DownloadedApp>,
-    onToggleApp: (DownloadedApp) -> Unit,
+    onToggleApp: (DownloadedApp) -> Unit
 ) {
     if (downloadedApps.isEmpty()) {
         EmptyState(
@@ -514,19 +548,20 @@ private fun <T> SourceItem(
             Text(source.displayName, style = MaterialTheme.typography.bodyLarge)
         },
         supportingContent = {
-            val stateText =
-                when (source.state) {
-                    is State.Available<*> -> null
-                    is State.Failed -> R.string.downloader_state_failed
-                    is State.Missing -> R.string.downloader_state_missing
-                }
+            val stateText = when (source.state) {
+                is State.Available<*> -> null
+                is State.Failed -> R.string.downloader_state_failed
+                is State.Missing -> R.string.downloader_state_missing
+            }
 
-            val version = source.loaded?.version
-            val relativeTime =
-                (source.asRemoteOrNull)?.releasedAt?.relativeTime(LocalContext.current)
+            val available = source.state is State.Available<*>
+            val version = (source.loaded as? PatchBundle)?.manifestAttributes?.version.cleanVersionText()
+            val relativeTime = (source.asRemoteOrNull)?.releasedAt
+                ?.takeIf { available }
+                ?.relativeTime(LocalContext.current)
             val versionText = when {
-                version != null && relativeTime != null -> "v$version\u2002($relativeTime)"
-                version != null -> "v$version"
+                version != null && relativeTime != null -> "${version.withVersionPrefix()} ($relativeTime)"
+                version != null -> version.withVersionPrefix()
                 relativeTime != null -> relativeTime
                 else -> ""
             }
@@ -535,7 +570,7 @@ private fun <T> SourceItem(
                 text = buildAnnotatedString {
                     append(versionText)
                     if (stateText != null) withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
-                        if (versionText.isNotBlank()) append("\u2002•\u2002")
+                        if (versionText.isNotBlank()) append(" • ")
                         append(stringResource(stateText))
                     }
                 },
@@ -544,3 +579,10 @@ private fun <T> SourceItem(
         }
     )
 }
+
+private fun String?.cleanVersionText(): String? = this
+    ?.trim()
+    ?.removePrefix("v")
+    ?.takeUnless { value -> value.isBlank() || value.equals("null", ignoreCase = true) }
+
+private fun String.withVersionPrefix() = if (startsWith("v", ignoreCase = true)) this else "v$this"
