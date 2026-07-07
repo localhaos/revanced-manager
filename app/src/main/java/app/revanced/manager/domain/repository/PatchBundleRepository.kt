@@ -126,11 +126,11 @@ class PatchBundleRepository(
     val bundleInfoFlow = store.state.map { it.data }
 
     fun scopedBundleInfoFlow(packageName: String, version: String?) = bundleInfoFlow.map {
-        it.map { (_, bundleInfo) ->
+        it.mapNotNull { (_, bundleInfo) ->
             bundleInfo.forPackage(
                 packageName,
                 version
-            )
+            ).takeIf { scoped -> scoped.patches.isNotEmpty() }
         }
     }
 
@@ -184,12 +184,20 @@ class PatchBundleRepository(
                     return@forEach
                 }
 
+                val patches = result.getOrThrow().toList()
+                val validationError = patches.validateParsedPatchList(src.name)
+                if (validationError != null) {
+                    sources[src.uid] = src.copy(error = validationError)
+                    Log.e(tag, "Rejected invalid patch bundle: ${src.name}", validationError)
+                    return@forEach
+                }
+
                 this[src.uid] = PatchBundleInfo.Global(
                     src.name,
                     bundle.manifestAttributes?.version,
                     (src as? RemotePatchBundle)?.releasedAt,
                     src.uid,
-                    result.getOrThrow().toList()
+                    patches
                 )
             }
         }
@@ -207,5 +215,23 @@ class PatchBundleRepository(
 
     private companion object PatchBundleLoader : Loader<PatchBundle> {
         override fun load(file: File) = PatchBundle(file.absolutePath)
+
+        private fun List<PatchInfo>.validateParsedPatchList(sourceName: String): Throwable? {
+            if (isEmpty()) {
+                return IllegalStateException("Patch bundle '$sourceName' was parsed, but it contains no patches")
+            }
+
+            val blankName = firstOrNull { it.name.isBlank() }
+            if (blankName != null) {
+                return IllegalStateException("Patch bundle '$sourceName' contains a patch with an empty name")
+            }
+
+            val duplicateName = groupingBy { it.name }.eachCount().entries.firstOrNull { it.value > 1 }?.key
+            if (duplicateName != null) {
+                return IllegalStateException("Patch bundle '$sourceName' contains duplicate patch name '$duplicateName'")
+            }
+
+            return null
+        }
     }
 }
