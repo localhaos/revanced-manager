@@ -105,3 +105,5 @@ jobs:
             artifacts/manifests/
           if-no-files-found: ignore
           retention-days: 7
+
+# build trigger: 2026-07-07 apk artifacts
