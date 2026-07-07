@@ -14,11 +14,11 @@ on:
       release_tag:
         description: Release tag to create or update
         required: true
-        default: v2.1.0-localhaos
+        default: v2.1.1-localhaos
       release_name:
         description: Release title
         required: true
-        default: Reverse 2.1 LocalHaos
+        default: Reverse 2.1.1 LocalHaos
       push_synced_main:
         description: Push merged upstream sync back to main
         required: true
@@ -66,8 +66,8 @@ jobs:
           set -euo pipefail
           echo "UPSTREAM_REPO=${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}" >> "$GITHUB_ENV"
           echo "UPSTREAM_BRANCH=${{ github.event.inputs.upstream_branch || 'main' }}" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG=${{ github.event.inputs.release_tag || 'v2.1.0-localhaos' }}" >> "$GITHUB_ENV"
-          echo "RELEASE_NAME=${{ github.event.inputs.release_name || 'Reverse 2.1 LocalHaos' }}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${{ github.event.inputs.release_tag || 'v2.1.1-localhaos' }}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=${{ github.event.inputs.release_name || 'Reverse 2.1.1 LocalHaos' }}" >> "$GITHUB_ENV"
           echo "PUSH_SYNCED_MAIN=${{ github.event.inputs.push_synced_main || 'true' }}" >> "$GITHUB_ENV"
 
       - name: Configure git
@@ -112,7 +112,7 @@ jobs:
           grep -R "PatchBundlesTabContent" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
-          printf 'version = 2.1.0-localhaos\n' > app/gradle.properties
+          printf 'version = 2.1.1-localhaos\n' > app/gradle.properties
           git add app/gradle.properties
           if ! git diff --cached --quiet; then
             git commit -m "chore: assert LocalHaos reverse release version"
@@ -141,7 +141,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=2.1.0-localhaos -PmanagerBuildLabel=localhaos-reverse-2.1
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=2.1.1-localhaos -PmanagerBuildLabel=localhaos-reverse-2.1.1
 
       - name: Collect APK and provenance
         shell: bash
@@ -159,8 +159,8 @@ jobs:
             echo "local_after_merge_sha=$(git rev-parse HEAD)"
             echo "release_tag=$RELEASE_TAG"
             echo "release_name=$RELEASE_NAME"
-            echo "version=2.1.0-localhaos"
-            echo "build_label=localhaos-reverse-2.1"
+            echo "version=2.1.1-localhaos"
+            echo "build_label=localhaos-reverse-2.1.1"
             echo "merge_strategy=git merge -X ours upstream/$UPSTREAM_BRANCH"
             echo "feature_patch_bundle_tab=true"
             echo "feature_patch_bundle_local_import=true"
@@ -169,12 +169,12 @@ jobs:
             echo "feature_localhaos_github_updates=true"
           } > artifacts/provenance/build-provenance.txt
           cat > artifacts/provenance/release-notes.md <<'EOF'
-          # Reverse 2.1 LocalHaos
+          # Reverse 2.1.1 LocalHaos
 
           This release is built from localhaos/revanced-manager after synchronizing with ReVanced/revanced-manager upstream.
 
           Included LocalHaos changes:
-          - Independent version label: 2.1.0-localhaos.
+          - Independent version label: 2.1.1-localhaos.
           - Downloads settings include a visible Patches tab for patch/bundle sources.
           - Patch/bundle sources can be imported from URL or local file.
           - Source version wrapper supports downloader packages and patch bundles.
@@ -188,7 +188,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: localhaos-reverse-2.1-apk-${{ github.sha }}
+          name: localhaos-reverse-2.1.1-apk-${{ github.sha }}
           path: |
             artifacts/apk/
             artifacts/provenance/
