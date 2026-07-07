@@ -95,9 +95,7 @@ class SelectedAppInfoViewModel(
     var downloadedApps: List<SelectedApp.Local> by mutableStateOf(emptyList())
         private set
 
-    private var _selectedApp by savedStateHandle.saveable {
-        mutableStateOf(input.app)
-    }
+    private var _selectedApp by savedStateHandle.saveable { mutableStateOf(input.app) }
 
     var selectedAppInfo: PackageInfo? by mutableStateOf(null)
         private set
@@ -115,16 +113,13 @@ class SelectedAppInfoViewModel(
         invalidateSelectedAppInfo()
         viewModelScope.launch(Dispatchers.Main) {
             val packageInfo = async(Dispatchers.IO) { pm.getPackageInfo(packageName) }
-            val installedAppDeferred =
-                async(Dispatchers.IO) { installedAppRepository.get(packageName) }
-            val downloadedAppsDeferred =
-                async(Dispatchers.IO) { downloadedAppRepository.getAllByPackage(packageName) }
+            val installedAppDeferred = async(Dispatchers.IO) { installedAppRepository.get(packageName) }
+            val downloadedAppsDeferred = async(Dispatchers.IO) { downloadedAppRepository.getAllByPackage(packageName) }
 
-            installedAppData =
-                packageInfo.await()?.let {
-                    if (it.isSplitApk()) return@let null
-                    SelectedApp.Installed(packageName, it.versionName!!) to installedAppDeferred.await()
-                }
+            installedAppData = packageInfo.await()?.let {
+                if (it.isSplitApk()) return@let null
+                SelectedApp.Installed(packageName, it.versionName!!) to installedAppDeferred.await()
+            }
 
             downloadedApps = downloadedAppsDeferred.await().mapNotNull {
                 val file = try {
@@ -142,9 +137,7 @@ class SelectedAppInfoViewModel(
         }
     }
 
-    val bundleInfoFlow by derivedStateOf {
-        bundleRepository.scopedBundleInfoFlow(packageName, selectedApp.version)
-    }
+    val bundleInfoFlow by derivedStateOf { bundleRepository.scopedBundleInfoFlow(packageName, selectedApp.version) }
 
     var options: Options by savedStateHandle.saveable {
         viewModelScope.launch {
@@ -268,12 +261,14 @@ class SelectedAppInfoViewModel(
         val input = app.contentResolver.openInputStream(uri)
             ?: return StorageLoadResult.Error(R.string.failed_to_load_apk)
 
-        when (val importResult = importSingleApkArchive(input, sourceInputFile)) {
+        when (importSingleApkArchive(input, sourceInputFile)) {
             AppArchiveImportResult.InvalidMagicHeader,
             AppArchiveImportResult.InvalidArchive,
             AppArchiveImportResult.NoApkEntry -> return StorageLoadResult.Error(R.string.failed_to_load_apk)
 
-            AppArchiveImportResult.SplitBundle -> return StorageLoadResult.Error(R.string.split_apk_not_supported)
+            AppArchiveImportResult.SplitBundle,
+            AppArchiveImportResult.AmbiguousBaseApk -> return StorageLoadResult.Error(R.string.split_apk_not_supported)
+
             is AppArchiveImportResult.Success -> Unit
         }
 
