@@ -1,3 +1,22 @@
+# app [1.1.0](https://github.com/localhaos/revanced-manager/compare/v1.0.0...v1.1.0) (2026-07-07)
+
+
+### Bug Fixes
+
+* allow version selector to use installed app ([656e922](https://github.com/localhaos/revanced-manager/commit/656e92291868d7b79c6ec6baa8bf857e128f60dc))
+* guard legacy parent files dir lookup ([cbb1abe](https://github.com/localhaos/revanced-manager/commit/cbb1abe754ff0d891bc9e439dd576f4041c311fe))
+* ignore derived changelog parcel field ([e338356](https://github.com/localhaos/revanced-manager/commit/e338356a5eed59b02232e89ae9056952fe5ff63c))
+* persist generated APK install requests ([5a375fc](https://github.com/localhaos/revanced-manager/commit/5a375fce1c34f1e53821c680f81070d07724893b))
+* prepare local release build ([cab8531](https://github.com/localhaos/revanced-manager/commit/cab8531ec033725d9c0ff4f3a38e1c80745a8e05))
+* recognize Morphe patch index URLs ([1027293](https://github.com/localhaos/revanced-manager/commit/10272930a8da38eb5f4b1685f3efacc861b65302))
+* restore pending APK installs after app resume ([a292370](https://github.com/localhaos/revanced-manager/commit/a292370fd767d12e4b6c34b432e948b7e8a591e6))
+* use kotlin time Instant in release dto ([45c69ce](https://github.com/localhaos/revanced-manager/commit/45c69ce8b38dc2cd4a0d16b0316f9d09f62c343d))
+
+
+### Features
+
+* expose patch bundle sources in downloads settings ([fba4ad7](https://github.com/localhaos/revanced-manager/commit/fba4ad7f442414b15aff27b403034e1b14c3ba1b))
+
 # app 1.0.0 (2026-07-06)
 
 
