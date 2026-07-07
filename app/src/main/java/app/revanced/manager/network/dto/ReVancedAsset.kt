@@ -1,11 +1,11 @@
 package app.revanced.manager.network.dto
 
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 @Serializable
 data class ReVancedAsset(
@@ -61,7 +61,9 @@ data class GitHubReleaseAsset(
     val browserDownloadUrl: String,
 ) {
     val isPatchBundle: Boolean
-        get() = name.endsWith(".jar", ignoreCase = true) &&
+        get() = (name.endsWith(".rvp", ignoreCase = true) ||
+                name.endsWith(".mpp", ignoreCase = true) ||
+                name.endsWith(".jar", ignoreCase = true)) &&
                 !name.endsWith(".asc", ignoreCase = true) &&
-                (name.contains("patch", ignoreCase = true) || name.contains("revanced", ignoreCase = true) || name.contains("rvx", ignoreCase = true))
+                (name.contains("patch", ignoreCase = true) || name.contains("revanced", ignoreCase = true) || name.contains("rvx", ignoreCase = true) || name.contains("bundle", ignoreCase = true))
 }
