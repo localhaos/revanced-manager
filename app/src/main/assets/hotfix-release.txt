@@ -22,3 +22,4 @@ Release trigger:
 - publish final v2.1.5-localhaos through Upstream Sync Reverse Release workflow
 - official upstream ReVanced sync checked
 - independent LocalHaos APK release requested
+- final release trigger after workflow cleanup
