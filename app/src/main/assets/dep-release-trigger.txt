@@ -11,6 +11,7 @@ Included guarded features:
 - patch parser fixes
 - Jman-Github ReVanced-Patch-Bundles raw JSON metadata support
 - GitHub blob JSON to raw JSON normalization
+- detected patch bundle visibility even when app-specific filter is empty
 - installed app source
 - unsplit APK bundle import
 - split APK merge
@@ -25,3 +26,4 @@ Rerun reason:
 - fixed DEP upstream sync to fetch only upstream/main with --no-tags and avoid upstream dev tag conflicts
 - added Jman catalog generated patches-bundle.json parser support
 - cleaned source display names and vnull rendering
+- fixed patch detection so valid bundles remain detected even when no patches match the currently selected package
