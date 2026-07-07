@@ -17,10 +17,13 @@ import kotlinx.datetime.LocalDateTime
  * - https://api.github.com/repos/owner/repo/releases/latest
  * - https://api.github.com/repos/owner/repo/releases/tags/<tag>
  * - direct URLs ending with .rvp, .mpp or .jar
+ * - direct JSON metadata URLs ending with .json
+ * - GitHub blob JSON metadata URLs, converted to raw.githubusercontent.com
+ * - Jman-Github/ReVanced-Patch-Bundles generated bundle JSON URLs.
  *
  * Notes:
  * - https://morphe-patches.software/ is a human-facing community index, not a direct bundle endpoint.
- *   Use an actual .mpp, .rvp or .jar URL from that index when bundles are available.
+ *   Use an actual .mpp, .rvp, .jar or generated bundle JSON URL when bundles are available.
  */
 object GitHubBundleAutoFinder {
     enum class BundleKind(val extension: String) {
@@ -48,6 +51,7 @@ object GitHubBundleAutoFinder {
         val normalized = input.trim().trimEnd('/')
         if (normalized.isBlank()) return null
         if (isMorphePatchIndex(normalized)) return null
+        if (metadataEndpointFrom(normalized) != null) return null
 
         githubApiReleaseListRegex.matchEntire(normalized)?.let { match ->
             val owner = match.groupValues[1]
@@ -83,6 +87,12 @@ object GitHubBundleAutoFinder {
 
     fun displayNameFrom(input: String): String? {
         val normalized = input.trim().trimEnd('/')
+        jmanMetadataDisplayNameFrom(normalized)?.let { return it }
+        metadataEndpointFrom(normalized)?.let { endpoint ->
+            jmanMetadataDisplayNameFrom(endpoint)?.let { return it }
+            return endpoint.substringAfterLast('/').substringBeforeLast('.').toDisplayTitle()
+        }
+
         val candidate = candidateFrom(normalized)
         if (candidate != null) return candidate.repo
             .removeSuffix("-patches")
@@ -94,10 +104,31 @@ object GitHubBundleAutoFinder {
         return directAssetFromOrNull(normalized)?.version
     }
 
+    fun metadataEndpointFrom(input: String): String? {
+        val normalized = input.trim().trimEnd('/')
+        if (!normalized.endsWith(".json", ignoreCase = true)) return null
+
+        githubBlobJsonRegex.matchEntire(normalized)?.let { match ->
+            val owner = match.groupValues[1]
+            val repo = match.groupValues[2]
+            val branch = match.groupValues[3]
+            val path = match.groupValues[4]
+            return "https://raw.githubusercontent.com/$owner/$repo/$branch/$path"
+        }
+
+        return normalized.takeIf { directJsonRegex.matches(it) }
+    }
+
     fun directAssetFrom(input: String): ReVancedAsset? {
         if (isMorphePatchIndex(input)) {
             throw IllegalArgumentException(
-                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp or .jar bundle URL."
+                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp, .jar or generated bundle JSON URL."
+            )
+        }
+
+        if (isJmanCatalog(input)) {
+            throw IllegalArgumentException(
+                "Jman patch list catalog is an index, not one bundle. Add one generated bundle JSON URL from the catalog, for example revanced-latest-patches-bundle.json."
             )
         }
 
@@ -139,9 +170,22 @@ object GitHubBundleAutoFinder {
         )
     }
 
-    fun supports(input: String) = candidateFrom(input) != null || directAssetFrom(input) != null
+    fun supports(input: String) = candidateFrom(input) != null || directAssetFrom(input) != null || metadataEndpointFrom(input) != null
 
     fun isMorphePatchIndex(input: String): Boolean = morphePatchIndexRegex.matches(input.trim().trimEnd('/'))
+
+    fun isJmanCatalog(input: String): Boolean = jmanCatalogRegex.matches(input.trim().trimEnd('/'))
+
+    private fun jmanMetadataDisplayNameFrom(input: String): String? {
+        val endpoint = metadataEndpointFrom(input) ?: input.trim().trimEnd('/')
+        val match = jmanRawBundleRegex.matchEntire(endpoint) ?: return null
+        val fileName = match.groupValues[2]
+        return "Jman/${fileName.removeSuffix("-patches-bundle").toDisplayTitle()}"
+    }
+
+    private fun String.toDisplayTitle(): String = split('-', '_')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { part -> part.replaceFirstChar { it.uppercaseChar() } }
 
     private fun githubReleaseApi(owner: String, repo: String, releaseRef: String) =
         "https://api.github.com/repos/$owner/$repo/releases/$releaseRef"
@@ -186,8 +230,28 @@ object GitHubBundleAutoFinder {
         option = RegexOption.IGNORE_CASE,
     )
 
+    private val githubBlobJsonRegex = Regex(
+        pattern = "^https://github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+\\.json)(?:[?#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
     private val directBundleRegex = Regex(
         pattern = "^https?://.+\\.(rvp|mpp|jar)(?:[?#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val directJsonRegex = Regex(
+        pattern = "^https?://.+\\.json(?:[?#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val jmanRawBundleRegex = Regex(
+        pattern = "^https://raw\\.githubusercontent\\.com/Jman-Github/ReVanced-Patch-Bundles/bundles/patch-bundles/([^/]+)/([^/]+)\\.json$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val jmanCatalogRegex = Regex(
+        pattern = "^https://github\\.com/Jman-Github/ReVanced-Patch-Bundles/(?:blob/)?bundles/patch-bundles/PATCH-LIST-CATALOG\\.md(?:[?#].*)?$",
         option = RegexOption.IGNORE_CASE,
     )
 
