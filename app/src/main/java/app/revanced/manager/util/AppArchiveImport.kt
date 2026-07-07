@@ -5,6 +5,8 @@ import java.io.InputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 sealed interface AppArchiveImportResult {
     data object InvalidMagicHeader : AppArchiveImportResult
@@ -19,6 +21,7 @@ sealed interface AppArchiveImportResult {
         SingleApkFromBundle,
         BaseApkFromSplitBundle,
         UnsplitRecoveredBaseApk,
+        MergedSplitBundle,
     }
 }
 
@@ -30,9 +33,11 @@ sealed interface AppArchiveImportResult {
  * - Bundle-like ZIP containers (.apks/.xapk/.apkm/.zip) when they contain exactly one APK entry.
  * - Anti-split mode for bundle-like containers when exactly one safe base APK can be resolved.
  * - Unsplit recovery mode for split bundles when one preferred base/universal/standalone APK can be selected.
+ * - Experimental APK merge mode: base APK + safe split payload entries are packed into one APK.
  *
- * This does not merge resource tables from split_config APKs. It intentionally recovers a single patcher input APK
- * and refuses split-only, framework-only, overlay-only or ambiguous bundles.
+ * APK merge mode intentionally does not run aapt/aapt2 and does not merge split resource tables.
+ * It skips AndroidManifest.xml, resources.arsc, res/**, signatures, framework APKs and overlay APKs from splits.
+ * It can still recover useful dex/native/assets payloads from split bundles for patcher input.
  */
 fun importSingleApkArchive(
     input: InputStream,
@@ -80,7 +85,7 @@ fun importSingleApkArchive(
                         }
                     }
 
-                    else -> zip.resolveUnsplitCandidate(nestedApkEntries, outputApk)
+                    else -> zip.resolveAndMergeSplitBundle(nestedApkEntries, outputApk)
                 }
             }
         } catch (_: ZipException) {
@@ -91,33 +96,122 @@ fun importSingleApkArchive(
     }
 }
 
-private fun ZipFile.resolveUnsplitCandidate(
+private fun ZipFile.resolveAndMergeSplitBundle(
     apkEntries: List<ZipEntry>,
     outputApk: File,
 ): AppArchiveImportResult {
+    val base = selectBaseApkCandidate(apkEntries) ?: return AppArchiveImportResult.SplitBundle
+    val splitEntries = apkEntries.filter { entry ->
+        entry.name != base.name && !entry.isRejectedFrameworkEntry()
+    }
+
+    val merged = mergeApkEntries(
+        baseEntry = base,
+        splitEntries = splitEntries,
+        outputApk = outputApk,
+    )
+
+    if (merged == AppArchiveImportResult.Success(AppArchiveImportResult.SourceKind.MergedSplitBundle)) {
+        return merged
+    }
+
+    return extractApkEntry(base, outputApk, AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk)
+}
+
+private fun selectBaseApkCandidate(apkEntries: List<ZipEntry>): ZipEntry? {
     val rankedCandidates = apkEntries
-        .filterNot { it.isRejectedFrameworkOrSplitEntry() }
+        .filterNot { it.isRejectedFrameworkEntry() }
         .mapNotNull { entry -> entry.unsplitRank()?.let { rank -> rank to entry } }
         .sortedWith(compareBy<Pair<Int, ZipEntry>> { it.first }.thenByDescending { it.second.size })
 
     val preferredRank = rankedCandidates.firstOrNull()?.first
     val preferred = rankedCandidates.filter { it.first == preferredRank }.map { it.second }
 
-    val selected = when {
-        preferred.isEmpty() -> {
-            val nonSplit = apkEntries.filterNot { it.isRejectedFrameworkOrSplitEntry() }
-            when (nonSplit.size) {
-                0 -> return AppArchiveImportResult.SplitBundle
-                1 -> nonSplit.single()
-                else -> return AppArchiveImportResult.AmbiguousBaseApk
+    if (preferred.size == 1) return preferred.single()
+    if (preferred.size > 1) return null
+
+    val nonSplit = apkEntries.filterNot { it.isRejectedFrameworkOrSplitEntry() }
+    return when (nonSplit.size) {
+        1 -> nonSplit.single()
+        else -> null
+    }
+}
+
+private fun ZipFile.mergeApkEntries(
+    baseEntry: ZipEntry,
+    splitEntries: List<ZipEntry>,
+    outputApk: File,
+): AppArchiveImportResult {
+    val written = linkedSetOf<String>()
+    var nextDexIndex = 1
+    var copiedSplitPayload = false
+
+    outputApk.delete()
+
+    try {
+        ZipOutputStream(outputApk.outputStream().buffered()).use { output ->
+            getInputStream(baseEntry).use { baseInput ->
+                ZipInputStream(baseInput.buffered()).use { baseZip ->
+                    while (true) {
+                        val entry = baseZip.nextEntry ?: break
+                        if (!entry.isDirectory && entry.name.isMergeableBaseEntry()) {
+                            output.copyZipEntry(entry.name, baseZip)
+                            written += entry.name
+                            if (entry.name.isDexEntry()) {
+                                nextDexIndex = maxOf(nextDexIndex, entry.name.dexIndex() + 1)
+                            }
+                        }
+                        baseZip.closeEntry()
+                    }
+                }
+            }
+
+            splitEntries.forEach { splitApkEntry ->
+                getInputStream(splitApkEntry).use { splitInput ->
+                    ZipInputStream(splitInput.buffered()).use { splitZip ->
+                        while (true) {
+                            val entry = splitZip.nextEntry ?: break
+                            if (!entry.isDirectory && entry.name.isMergeableSplitPayloadEntry()) {
+                                val targetName = if (entry.name.isDexEntry()) {
+                                    "classes${nextDexIndex++}.dex"
+                                } else {
+                                    entry.name
+                                }
+
+                                if (targetName !in written) {
+                                    output.copyZipEntry(targetName, splitZip)
+                                    written += targetName
+                                    copiedSplitPayload = true
+                                }
+                            }
+                            splitZip.closeEntry()
+                        }
+                    }
+                }
             }
         }
-
-        preferred.size == 1 -> preferred.single()
-        else -> return AppArchiveImportResult.AmbiguousBaseApk
+    } catch (_: ZipException) {
+        outputApk.delete()
+        return AppArchiveImportResult.InvalidArchive
     }
 
-    return extractApkEntry(selected, outputApk, AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk)
+    return if (!outputApk.hasZipMagicHeader()) {
+        outputApk.delete()
+        AppArchiveImportResult.InvalidMagicHeader
+    } else if (copiedSplitPayload) {
+        AppArchiveImportResult.Success(AppArchiveImportResult.SourceKind.MergedSplitBundle)
+    } else {
+        AppArchiveImportResult.Success(AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk)
+    }
+}
+
+private fun ZipOutputStream.copyZipEntry(
+    name: String,
+    input: InputStream,
+) {
+    putNextEntry(ZipEntry(name))
+    input.copyTo(this)
+    closeEntry()
 }
 
 private fun ZipFile.extractApkEntry(
@@ -158,7 +252,7 @@ private fun ZipEntry.unsplitRank(): Int? {
     }
 }
 
-private fun ZipEntry.isRejectedFrameworkOrSplitEntry(): Boolean {
+private fun ZipEntry.isRejectedFrameworkEntry(): Boolean {
     val normalizedPath = name.lowercase()
     val normalized = normalizedPath.substringAfterLast('/')
 
@@ -171,21 +265,47 @@ private fun ZipEntry.isRejectedFrameworkOrSplitEntry(): Boolean {
             normalizedPath.contains("/system/vendor/overlay/") ||
             normalizedPath.contains("/framework/") ||
             normalizedPath.contains("/overlay/") ||
-            normalized.startsWith("split_") ||
-            normalized.startsWith("config.") ||
-            normalized.startsWith("feature_") ||
-            normalized.startsWith("assetpack") ||
-            normalized.contains("split_config") ||
-            normalized.contains("dpi") ||
-            normalized.contains("lang") ||
-            normalized.contains("locale") ||
-            normalized.contains("density") ||
-            normalized.contains("abi") ||
-            normalized.contains("arm64") ||
-            normalized.contains("armeabi") ||
-            normalized.contains("x86") ||
-            normalized.contains("hdpi") ||
-            normalized.contains("xhdpi") ||
-            normalized.contains("xxhdpi") ||
-            normalized.contains("xxxhdpi")
+            normalized.startsWith("assetpack")
 }
+
+private fun ZipEntry.isRejectedFrameworkOrSplitEntry(): Boolean =
+    isRejectedFrameworkEntry() || name.substringAfterLast('/').lowercase().isSplitLikeApkName()
+
+private fun String.isSplitLikeApkName(): Boolean = startsWith("split_") ||
+        startsWith("config.") ||
+        startsWith("feature_") ||
+        contains("split_config") ||
+        contains("dpi") ||
+        contains("lang") ||
+        contains("locale") ||
+        contains("density") ||
+        contains("abi") ||
+        contains("arm64") ||
+        contains("armeabi") ||
+        contains("x86") ||
+        contains("hdpi") ||
+        contains("xhdpi") ||
+        contains("xxhdpi") ||
+        contains("xxxhdpi")
+
+private fun String.isMergeableBaseEntry(): Boolean = !isSignatureEntry()
+
+private fun String.isMergeableSplitPayloadEntry(): Boolean = isDexEntry() ||
+        startsWith("lib/") ||
+        startsWith("assets/") ||
+        startsWith("kotlin/") ||
+        startsWith("META-INF/services/")
+
+private fun String.isSignatureEntry(): Boolean = startsWith("META-INF/") &&
+        (endsWith(".RSA", ignoreCase = true) ||
+                endsWith(".DSA", ignoreCase = true) ||
+                endsWith(".EC", ignoreCase = true) ||
+                endsWith(".SF", ignoreCase = true) ||
+                substringAfterLast('/') == "MANIFEST.MF")
+
+private fun String.isDexEntry(): Boolean = matches(Regex("classes(\\d*)\\.dex"))
+
+private fun String.dexIndex(): Int = removePrefix("classes")
+    .removeSuffix(".dex")
+    .ifBlank { "1" }
+    .toIntOrNull() ?: 1
