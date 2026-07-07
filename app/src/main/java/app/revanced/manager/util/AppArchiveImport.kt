@@ -32,7 +32,7 @@ sealed interface AppArchiveImportResult {
  * - Unsplit recovery mode for split bundles when one preferred base/universal/standalone APK can be selected.
  *
  * This does not merge resource tables from split_config APKs. It intentionally recovers a single patcher input APK
- * and refuses split-only or ambiguous bundles.
+ * and refuses split-only, framework-only, overlay-only or ambiguous bundles.
  */
 fun importSingleApkArchive(
     input: InputStream,
@@ -73,7 +73,7 @@ fun importSingleApkArchive(
 
                     nestedApkEntries.size == 1 -> {
                         val entry = nestedApkEntries.single()
-                        if (entry.isLikelySplitApkEntry()) {
+                        if (entry.isRejectedFrameworkOrSplitEntry()) {
                             AppArchiveImportResult.SplitBundle
                         } else {
                             zip.extractApkEntry(entry, outputApk, AppArchiveImportResult.SourceKind.SingleApkFromBundle)
@@ -96,7 +96,7 @@ private fun ZipFile.resolveUnsplitCandidate(
     outputApk: File,
 ): AppArchiveImportResult {
     val rankedCandidates = apkEntries
-        .filterNot { it.isLikelySplitApkEntry() }
+        .filterNot { it.isRejectedFrameworkOrSplitEntry() }
         .mapNotNull { entry -> entry.unsplitRank()?.let { rank -> rank to entry } }
         .sortedWith(compareBy<Pair<Int, ZipEntry>> { it.first }.thenByDescending { it.second.size })
 
@@ -105,7 +105,7 @@ private fun ZipFile.resolveUnsplitCandidate(
 
     val selected = when {
         preferred.isEmpty() -> {
-            val nonSplit = apkEntries.filterNot { it.isLikelySplitApkEntry() }
+            val nonSplit = apkEntries.filterNot { it.isRejectedFrameworkOrSplitEntry() }
             when (nonSplit.size) {
                 0 -> return AppArchiveImportResult.SplitBundle
                 1 -> nonSplit.single()
@@ -117,11 +117,7 @@ private fun ZipFile.resolveUnsplitCandidate(
         else -> return AppArchiveImportResult.AmbiguousBaseApk
     }
 
-    return extractApkEntry(
-        selected,
-        outputApk,
-        AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk
-    )
+    return extractApkEntry(selected, outputApk, AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk)
 }
 
 private fun ZipFile.extractApkEntry(
@@ -162,13 +158,27 @@ private fun ZipEntry.unsplitRank(): Int? {
     }
 }
 
-private fun ZipEntry.isLikelySplitApkEntry(): Boolean {
-    val normalized = name.substringAfterLast('/').lowercase()
-    return normalized.startsWith("split_") ||
+private fun ZipEntry.isRejectedFrameworkOrSplitEntry(): Boolean {
+    val normalizedPath = name.lowercase()
+    val normalized = normalizedPath.substringAfterLast('/')
+
+    return normalized == "framework-res.apk" ||
+            normalized == "android.apk" ||
+            normalized == "framework.apk" ||
+            normalized == "overlay.apk" ||
+            normalizedPath.contains("/system/framework/") ||
+            normalizedPath.contains("/system/product/overlay/") ||
+            normalizedPath.contains("/system/vendor/overlay/") ||
+            normalizedPath.contains("/framework/") ||
+            normalizedPath.contains("/overlay/") ||
+            normalized.startsWith("split_") ||
             normalized.startsWith("config.") ||
+            normalized.startsWith("feature_") ||
+            normalized.startsWith("assetpack") ||
             normalized.contains("split_config") ||
             normalized.contains("dpi") ||
             normalized.contains("lang") ||
+            normalized.contains("locale") ||
             normalized.contains("density") ||
             normalized.contains("abi") ||
             normalized.contains("arm64") ||
