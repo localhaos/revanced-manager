@@ -16,19 +16,16 @@ import kotlinx.datetime.LocalDateTime
  * - https://api.github.com/repos/owner/repo/releases
  * - https://api.github.com/repos/owner/repo/releases/latest
  * - https://api.github.com/repos/owner/repo/releases/tags/<tag>
- * - direct URLs ending with .rvp, .mpp or .jar
+ * - direct URLs ending with .rvp, .mpp, .arp or .jar
  * - direct JSON metadata URLs ending with .json
  * - GitHub blob JSON metadata URLs, converted to raw.githubusercontent.com
  * - Jman-Github/ReVanced-Patch-Bundles generated bundle JSON URLs.
- *
- * Notes:
- * - https://morphe-patches.software/ is a human-facing community index, not a direct bundle endpoint.
- *   Use an actual .mpp, .rvp, .jar or generated bundle JSON URL when bundles are available.
  */
 object GitHubBundleAutoFinder {
     enum class BundleKind(val extension: String) {
         ReVanced(".rvp"),
         Morphe(".mpp"),
+        Ample(".arp"),
         LegacyJar(".jar"),
     }
 
@@ -122,7 +119,7 @@ object GitHubBundleAutoFinder {
     fun directAssetFrom(input: String): ReVancedAsset? {
         if (isMorphePatchIndex(input)) {
             throw IllegalArgumentException(
-                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp, .jar or generated bundle JSON URL."
+                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp, .arp, .jar or generated bundle JSON URL."
             )
         }
 
@@ -159,7 +156,7 @@ object GitHubBundleAutoFinder {
             .mapNotNull { asset -> asset.bundleKind()?.let { kind -> kind to asset } }
             .sortedBy { (kind, _) -> kind.rank }
             .firstOrNull()
-            ?: throw NoSuchElementException("GitHub release '${release.tagName}' has no .rvp, .mpp or .jar patch bundle asset")
+            ?: throw NoSuchElementException("GitHub release '${release.tagName}' has no .rvp, .mpp, .arp or .jar patch bundle asset")
 
         val (kind, asset) = rankedAsset
         return ResolvedBundle(
@@ -200,7 +197,8 @@ object GitHubBundleAutoFinder {
     private val BundleKind.rank get() = when (this) {
         BundleKind.ReVanced -> 0
         BundleKind.Morphe -> 1
-        BundleKind.LegacyJar -> 2
+        BundleKind.Ample -> 2
+        BundleKind.LegacyJar -> 3
     }
 
     private val directBundleCreatedAt = LocalDateTime(1970, 1, 1, 0, 0)
@@ -236,7 +234,7 @@ object GitHubBundleAutoFinder {
     )
 
     private val directBundleRegex = Regex(
-        pattern = "^https?://.+\\.(rvp|mpp|jar)(?:[?#].*)?$",
+        pattern = "^https?://.+\\.(rvp|mpp|arp|jar)(?:[?#].*)?$",
         option = RegexOption.IGNORE_CASE,
     )
 
