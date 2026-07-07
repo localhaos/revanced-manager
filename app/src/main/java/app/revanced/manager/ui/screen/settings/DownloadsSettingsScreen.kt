@@ -20,10 +20,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -80,6 +82,35 @@ private enum class DownloadsTab(
     Patches(R.string.tab_patches, Icons.Outlined.Download),
     Apps(R.string.tab_apps, Icons.Outlined.Apps)
 }
+
+private data class OnlinePatchSource(
+    val name: String,
+    val description: String,
+    val url: String
+)
+
+private val onlinePatchSources = listOf(
+    OnlinePatchSource(
+        name = "ReVanced official patches",
+        description = "Official network patch bundle source",
+        url = "https://api.github.com/repos/ReVanced/revanced-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "ReVanced official patches releases",
+        description = "GitHub releases API source for official patches",
+        url = "https://api.github.com/repos/ReVanced/revanced-patches/releases"
+    ),
+    OnlinePatchSource(
+        name = "Morphe patches",
+        description = "Morphe network source candidate",
+        url = "https://api.github.com/repos/Morphe-Project/revanced-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "RVX patches",
+        description = "inotia00/RVX network source candidate",
+        url = "https://api.github.com/repos/inotia00/revanced-patches/releases/latest"
+    )
+)
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -257,6 +288,7 @@ fun DownloadsSettingsScreen(
                         DownloadsTab.Patches -> PatchBundlesTabContent(
                             sources = patchBundleSources,
                             listState = patchBundleListState,
+                            onAddOnlinePatchSource = { url -> viewModel.createRemotePatchBundleSource(url, true) }
                         )
 
                         DownloadsTab.Apps -> AppsTabContent(
@@ -316,20 +348,47 @@ private fun DownloadersTabContent(
 private fun PatchBundlesTabContent(
     sources: List<Source<PatchBundle>>,
     listState: LazyListState,
+    onAddOnlinePatchSource: (String) -> Unit,
 ) {
-    if (sources.isEmpty()) {
-        EmptyState(
-            icon = Icons.Outlined.Download,
-            title = R.string.no_patches_found,
-            description = R.string.no_patches_description
-        )
-    } else {
-        LazyColumnWithScrollbar(
-            modifier = Modifier.fillMaxSize(),
-            state = listState
-        ) {
+    LazyColumnWithScrollbar(
+        modifier = Modifier.fillMaxSize(),
+        state = listState
+    ) {
+        item(key = "online_patch_browser_header") {
+            Text(
+                text = "Online patch browser",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        onlinePatchSources.forEach { onlineSource ->
+            item(key = "online_patch_source:${onlineSource.url}") {
+                ListItem(
+                    modifier = Modifier.clickable { onAddOnlinePatchSource(onlineSource.url) },
+                    headlineContent = { Text(onlineSource.name) },
+                    supportingContent = { Text("${onlineSource.description}\n${onlineSource.url}") },
+                    leadingContent = { Icon(Icons.Outlined.Public, contentDescription = null) }
+                )
+            }
+        }
+
+        item(key = "online_patch_browser_divider") {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        }
+
+        if (sources.isEmpty()) {
+            item(key = "patch_sources_empty") {
+                EmptyState(
+                    icon = Icons.Outlined.Download,
+                    title = R.string.no_patches_found,
+                    description = R.string.no_patches_description
+                )
+            }
+        } else {
             sources.sortedBy { it.uid }.forEach { source ->
-                item(key = source.uid) {
+                item(key = "patch_source:${source.uid}") {
                     PatchBundleItem(source = source)
                 }
             }
@@ -399,7 +458,7 @@ private fun <T> SourceItem(
     ListItem(
         modifier = onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier,
         headlineContent = {
-            Text(source.name, style = MaterialTheme.typography.bodyLarge)
+            Text(source.displayName, style = MaterialTheme.typography.bodyLarge)
         },
         supportingContent = {
             val stateText =
