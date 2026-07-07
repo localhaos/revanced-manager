@@ -35,8 +35,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: reverse-2.1
-            version: 2.1.0
+          - label: localhaos-reverse-2.1.5
+            version: 2.1.5-localhaos
 
     steps:
       - name: Checkout
@@ -44,22 +44,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify checkout and Reverse 2.1 feature files
+      - name: Verify checkout and LocalHaos GUI features
         shell: bash
         run: |
           set -euo pipefail
           test "${{ github.repository }}" = "localhaos/revanced-manager"
           git rev-parse HEAD
-          test -f app/src/main/java/app/revanced/manager/util/GeneratedApkInstallHandler.kt
-          test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
-          test -f app/src/main/java/app/revanced/manager/ui/screen/settings/SourceVersionCompat.kt
-          test -f app/src/main/java/app/revanced/manager/ui/screen/settings/SourceDisplayCompat.kt
-          test -f docs/patch-bundle-sources.md
+          test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
           grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          grep -R "PatchBundlesTabContent" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
-          grep -R "version = 2.1.0" app/gradle.properties
+          grep -R "version = 2.1.5-localhaos" app/gradle.properties
           mkdir -p artifacts/provenance
           {
             echo "repository=${{ github.repository }}"
@@ -68,10 +65,8 @@ jobs:
             echo "run_id=${{ github.run_id }}"
             echo "build_label=${{ matrix.label }}"
             echo "version=${{ matrix.version }}"
-            echo "feature_patch_bundle_tab=true"
-            echo "feature_patch_bundle_local_import=true"
-            echo "feature_source_version_wrappers=true"
-            echo "feature_localhaos_github_updates=true"
+            echo "feature_online_patch_browser=true"
+            echo "feature_installed_app_source=true"
           } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
