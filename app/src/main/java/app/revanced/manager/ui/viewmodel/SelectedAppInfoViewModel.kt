@@ -47,6 +47,7 @@ import app.revanced.manager.util.AppArchiveImportResult
 import app.revanced.manager.util.Options
 import app.revanced.manager.util.PM
 import app.revanced.manager.util.PatchSelection
+import app.revanced.manager.util.copySystemBaseApk
 import app.revanced.manager.util.importSingleApkArchive
 import app.revanced.manager.util.isSplitApk
 import app.revanced.manager.util.simpleMessage
@@ -112,16 +113,20 @@ class SelectedAppInfoViewModel(
     init {
         invalidateSelectedAppInfo()
         viewModelScope.launch(Dispatchers.Main) {
-            val packageInfo = async(Dispatchers.IO) { pm.getPackageInfo(packageName) }
+            val packageInfoDeferred = async(Dispatchers.IO) { pm.getPackageInfo(packageName) }
             val installedAppDeferred = async(Dispatchers.IO) { installedAppRepository.get(packageName) }
             val downloadedAppsDeferred = async(Dispatchers.IO) { downloadedAppRepository.getAllByPackage(packageName) }
 
-            installedAppData = packageInfo.await()?.let {
-                if (it.isSplitApk()) return@let null
+            val packageInfo = packageInfoDeferred.await()
+            installedAppData = packageInfo?.takeUnless { it.isSplitApk() }?.let {
                 SelectedApp.Installed(packageName, it.versionName!!) to installedAppDeferred.await()
             }
 
-            downloadedApps = downloadedAppsDeferred.await().mapNotNull {
+            val systemBaseSource = packageInfo?.takeIf { it.isSplitApk() }?.let { info ->
+                withContext(Dispatchers.IO) { loadSystemBaseSource(info) }
+            }
+
+            val downloadedLocalSources = downloadedAppsDeferred.await().mapNotNull {
                 val file = try {
                     downloadedAppRepository.getApkFileForApp(it)
                 } catch (_: Exception) {
@@ -129,6 +134,8 @@ class SelectedAppInfoViewModel(
                 }
                 SelectedApp.Local(it.packageName, it.version, file, false)
             }
+
+            downloadedApps = listOfNotNull(systemBaseSource) + downloadedLocalSources
 
             if (selectedApp is SelectedApp.Search) {
                 val resolved = resolveAutoSource(selectedApp.version)
@@ -186,6 +193,10 @@ class SelectedAppInfoViewModel(
 
     private val sourceInputFile by savedStateHandle.saveable(key = "sourceInputFile") {
         mutableStateOf(java.io.File(fs.uiTempDir, "selected_source.apk").also(java.io.File::delete))
+    }
+
+    private val systemBaseInputFile by savedStateHandle.saveable(key = "systemBaseInputFile") {
+        mutableStateOf(java.io.File(fs.uiTempDir, "system_source_base.apk").also(java.io.File::delete))
     }
 
     val errorFlow = combine(allDownloaders, snapshotFlow { selectedApp }) { allDownloaders, app ->
@@ -284,6 +295,21 @@ class SelectedAppInfoViewModel(
                 file = sourceInputFile,
                 temporary = true
             )
+        )
+    }
+
+    private fun loadSystemBaseSource(packageInfo: PackageInfo): SelectedApp.Local? {
+        if (!copySystemBaseApk(packageInfo, systemBaseInputFile)) return null
+
+        val copiedInfo = pm.getPackageInfo(systemBaseInputFile) ?: return null
+        if (copiedInfo.packageName != packageName) return null
+        if (copiedInfo.isSplitApk()) return null
+
+        return SelectedApp.Local(
+            packageName = copiedInfo.packageName,
+            version = copiedInfo.versionName ?: packageInfo.versionName ?: return null,
+            file = systemBaseInputFile,
+            temporary = true
         )
     }
 
