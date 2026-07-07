@@ -100,16 +100,17 @@ class MainViewModel(
             }
         }
 
-        val storedPatchesFile = File(app.filesDir.parentFile.absolutePath, "/app_flutter/selected-patches.json")
+        val legacyRoot = app.filesDir.parentFile
+        val storedPatchesFile = legacyRoot?.resolve("app_flutter/selected-patches.json")
         val patches: SerializedSelection? =
-            if (storedPatchesFile.exists()) {
+            if (storedPatchesFile?.exists() == true) {
                 json.decodeFromString<SerializedSelection>(storedPatchesFile.readText())
             } else {
                 null
             }
 
-        val keystoreFile = File(app.getExternalFilesDir(null), "/revanced-manager.keystore")
-        val keystore: ByteArray? = if (keystoreFile.exists()) {
+        val keystoreFile = app.getExternalFilesDir(null)?.resolve("revanced-manager.keystore")
+        val keystore: ByteArray? = if (keystoreFile?.exists() == true) {
             val bytes = keystoreFile.readBytes()
 
             keystoreFile.delete()
@@ -179,27 +180,25 @@ class MainViewModel(
                 )
             }
         }
-        Log.d(tag, "Imported legacy settings")
     }
+
+    @Serializable
+    private data class LegacySettings(
+        val apiUrl: String? = null,
+        val themeMode: Int? = null,
+        val useDynamicTheme: Boolean? = null,
+        val experimentalPatchesEnabled: Boolean? = null,
+        val patchesChangeEnabled: Boolean? = null,
+        val usePrereleases: Boolean? = null,
+        val keystorePassword: String = "s3cur3p@ssw0rd",
+        val patchedApps: String? = null,
+    )
 
     @Serializable
     private data class LegacyPatchedApp(
         val packageName: String,
         val version: String,
         val isRooted: Boolean,
-        val appliedPatches: List<String>,
-    )
-
-    @Serializable
-    private data class LegacySettings(
-        val keystorePassword: String,
-        val themeMode: Int? = null,
-        val useDynamicTheme: Boolean? = null,
-        val usePrereleases: Boolean? = null,
-        val apiUrl: String? = null,
-        val experimentalPatchesEnabled: Boolean? = null,
-        val patchesAutoUpdate: Boolean? = null,
-        val patchesChangeEnabled: Boolean? = null,
-        val patchedApps: String? = null,
+        val appliedPatches: List<String>
     )
 }
