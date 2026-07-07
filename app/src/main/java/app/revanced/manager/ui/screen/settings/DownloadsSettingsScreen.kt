@@ -56,6 +56,7 @@ import app.revanced.manager.domain.sources.Extensions.asRemoteOrNull
 import app.revanced.manager.domain.sources.Source
 import app.revanced.manager.domain.sources.Source.State
 import app.revanced.manager.network.downloader.DownloaderPackage
+import app.revanced.manager.patcher.patch.PatchBundle
 import app.revanced.manager.ui.component.BottomContentBar
 import app.revanced.manager.ui.component.ConfirmDialog
 import app.revanced.manager.ui.component.EmptyState
@@ -76,6 +77,7 @@ private enum class DownloadsTab(
     val icon: ImageVector
 ) {
     Downloaders(R.string.downloaders, Icons.Outlined.Download),
+    Patches(R.string.tab_patches, Icons.Outlined.Download),
     Apps(R.string.tab_apps, Icons.Outlined.Apps)
 }
 
@@ -92,14 +94,17 @@ fun DownloadsSettingsScreen(
 ) {
     val downloadedApps by viewModel.downloadedApps.collectAsStateWithLifecycle(emptyList())
     val downloaderSources by viewModel.downloaderSources.collectAsStateWithLifecycle(emptyMap())
+    val patchBundleSources by viewModel.patchBundleSources.collectAsStateWithLifecycle(emptyList())
 
     val pagerState = rememberPagerState(pageCount = { DownloadsTab.entries.size })
     val scope = rememberCoroutineScope()
     val downloaderListState = rememberLazyListState()
+    val patchBundleListState = rememberLazyListState()
     val appsListState = rememberLazyListState()
     val selectedListState = rememberSelectedListState(
         selectedPage = pagerState.currentPage,
         downloaderListState = downloaderListState,
+        patchBundleListState = patchBundleListState,
         appsListState = appsListState
     )
     val canScroll by remember(selectedListState) {
@@ -125,16 +130,25 @@ fun DownloadsSettingsScreen(
     }
 
     if (showImportDialog) {
+        val importPatches = currentTab == DownloadsTab.Patches
         ImportSourceDialog(
-            strings = ImportSourceDialogStrings.DOWNLOADERS,
+            strings = if (importPatches) ImportSourceDialogStrings.PATCHES else ImportSourceDialogStrings.DOWNLOADERS,
             onDismiss = { showImportDialog = false },
             onLocalSubmit = { uri ->
                 showImportDialog = false
-                viewModel.createLocalSource(uri)
+                if (importPatches) {
+                    viewModel.createLocalPatchBundleSource(uri)
+                } else {
+                    viewModel.createLocalSource(uri)
+                }
             },
             onRemoteSubmit = { url, autoUpdate ->
                 showImportDialog = false
-                viewModel.createRemoteSource(url, autoUpdate)
+                if (importPatches) {
+                    viewModel.createRemotePatchBundleSource(url, autoUpdate)
+                } else {
+                    viewModel.createRemoteSource(url, autoUpdate)
+                }
             }
         )
     }
@@ -168,7 +182,7 @@ fun DownloadsSettingsScreen(
             )
         },
         bottomBar = {
-            if (pagerState.currentPage != DownloadsTab.Downloaders.ordinal) return@Scaffold
+            if (currentTab == DownloadsTab.Apps) return@Scaffold
 
             BottomContentBar(modifier = Modifier.navigationBarsPadding()) {
                 FilledTonalButton(
@@ -183,7 +197,11 @@ fun DownloadsSettingsScreen(
                         contentDescription = stringResource(R.string.add)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = stringResource(R.string.downloader_add))
+                    Text(
+                        text = stringResource(
+                            if (currentTab == DownloadsTab.Patches) R.string.add_patches else R.string.downloader_add
+                        )
+                    )
                 }
             }
         },
@@ -211,8 +229,18 @@ fun DownloadsSettingsScreen(
             }
 
             PullToRefreshBox(
-                onRefresh = viewModel::refreshDownloaders,
-                isRefreshing = viewModel.isRefreshingDownloaders,
+                onRefresh = {
+                    if (currentTab == DownloadsTab.Patches) {
+                        viewModel.refreshPatchBundles()
+                    } else {
+                        viewModel.refreshDownloaders()
+                    }
+                },
+                isRefreshing = if (currentTab == DownloadsTab.Patches) {
+                    viewModel.isRefreshingPatchBundles
+                } else {
+                    viewModel.isRefreshingDownloaders
+                },
                 modifier = Modifier.fillMaxSize()
             ) {
                 HorizontalPager(
@@ -224,6 +252,11 @@ fun DownloadsSettingsScreen(
                             sources = downloaderSources,
                             listState = downloaderListState,
                             onDownloaderClick = onDownloaderClick,
+                        )
+
+                        DownloadsTab.Patches -> PatchBundlesTabContent(
+                            sources = patchBundleSources,
+                            listState = patchBundleListState,
                         )
 
                         DownloadsTab.Apps -> AppsTabContent(
@@ -243,9 +276,14 @@ fun DownloadsSettingsScreen(
 private fun rememberSelectedListState(
     selectedPage: Int,
     downloaderListState: LazyListState,
+    patchBundleListState: LazyListState,
     appsListState: LazyListState
-) = remember(selectedPage, downloaderListState, appsListState) {
-    if (selectedPage == DownloadsTab.Downloaders.ordinal) downloaderListState else appsListState
+) = remember(selectedPage, downloaderListState, patchBundleListState, appsListState) {
+    when (DownloadsTab.entries[selectedPage]) {
+        DownloadsTab.Downloaders -> downloaderListState
+        DownloadsTab.Patches -> patchBundleListState
+        DownloadsTab.Apps -> appsListState
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -270,6 +308,31 @@ private fun DownloadersTabContent(
                         )
                     }
                 }
+        }
+    }
+}
+
+@Composable
+private fun PatchBundlesTabContent(
+    sources: List<Source<PatchBundle>>,
+    listState: LazyListState,
+) {
+    if (sources.isEmpty()) {
+        EmptyState(
+            icon = Icons.Outlined.Download,
+            title = R.string.no_patches_found,
+            description = R.string.no_patches_description
+        )
+    } else {
+        LazyColumnWithScrollbar(
+            modifier = Modifier.fillMaxSize(),
+            state = listState
+        ) {
+            sources.sortedBy { it.uid }.forEach { source ->
+                item(key = source.uid) {
+                    PatchBundleItem(source = source)
+                }
+            }
         }
     }
 }
@@ -317,8 +380,24 @@ private fun DownloaderItem(
     source: Source<DownloaderPackage>,
     onClick: () -> Unit
 ) {
+    SourceItem(
+        source = source,
+        onClick = onClick
+    )
+}
+
+@Composable
+private fun PatchBundleItem(source: Source<PatchBundle>) {
+    SourceItem(source = source)
+}
+
+@Composable
+private fun <T> SourceItem(
+    source: Source<T>,
+    onClick: (() -> Unit)? = null,
+) {
     ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier,
         headlineContent = {
             Text(source.name, style = MaterialTheme.typography.bodyLarge)
         },
@@ -337,7 +416,6 @@ private fun DownloaderItem(
             Text(
                 text = buildAnnotatedString {
                     append(if (relativeTime != null) "v$version\u2002($relativeTime)" else "v$version")
-                    // Error colored state text shown when state isn't available
                     if (stateText != null) withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
                         append("\u2002\u2022\u2002")
                         append(stringResource(stateText))
