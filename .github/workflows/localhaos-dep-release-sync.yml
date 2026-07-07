@@ -27,6 +27,11 @@ on:
         description: Push upstream-synced main after release
         required: true
         default: 'true'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/src/main/assets/dep-release-trigger.txt'
 
 permissions:
   contents: write
@@ -77,7 +82,7 @@ jobs:
           git fetch --tags --force
           prefix="v${VERSION_PREFIX}."
           suffix="-${RELEASE_SUFFIX}"
-          tags="$({ git tag -l "${prefix}*${suffix}" || true; gh release list --limit 100 --json tagName --jq '.[].tagName' || true; } | sort -u)"
+          tags="$({ git tag -l "${prefix}*${suffix}" || true; gh release list --limit 200 --json tagName --jq '.[].tagName' || true; } | sort -u)"
           current_max="0"
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
@@ -116,16 +121,32 @@ jobs:
             git commit -m "chore: set $VERSION release version"
           fi
 
-      - name: Verify LocalHaos GUI, parser, update and workflow features
+      - name: Verify LocalHaos GUI, parser, APK and workflow features
         shell: bash
         run: |
           set -euo pipefail
           git rev-parse HEAD
           test "${{ github.repository }}" = "localhaos/revanced-manager"
+          test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          test -f app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          test -f app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
+          test -f app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          test -f app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "UnsplitRecoveredBaseApk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "MergedSplitBundle" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "mergeApkEntries" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "isMergeableSplitPayloadEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "isRejectedFrameworkOrSplitEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "framework-res.apk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "copySystemBaseApk" app/src/main/java/app/revanced/manager/util/SystemApkSource.kt app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
+          grep -R "systemBaseInputFile" app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
+          grep -R "sourceDir" app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
           grep -R "localhaos/revanced-manager/releases" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt .github/workflows/*.yml
           grep -R "version = $VERSION" app/gradle.properties
@@ -146,17 +167,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion="$VERSION" -PmanagerBuildLabel="$BUILD_LABEL"
+          mkdir -p artifacts/provenance
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion="$VERSION" -PmanagerBuildLabel="$BUILD_LABEL" 2>&1 | tee artifacts/provenance/gradle-build.log
 
       - name: Collect APK and provenance
         if: always()
         shell: bash
+        env:
+          UPSTREAM_REPO: ${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}
+          UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'main' }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/apk artifacts/provenance artifacts/reports artifacts/logs
+          mkdir -p artifacts/apk artifacts/provenance artifacts/reports artifacts/logs artifacts/manifests
           find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
           find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
           find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
+          find app/build -type f \( -name '*manifest*report*.txt' -o -name 'AndroidManifest.xml' \) -print -exec cp --parents -v {} artifacts/manifests/ \; || true
           {
             echo "repository=${{ github.repository }}"
             echo "sha=$(git rev-parse HEAD)"
@@ -169,9 +195,13 @@ jobs:
             echo "feature_installed_app_source=true"
             echo "feature_localhaos_app_update=true"
             echo "feature_release_build_publish_sync=true"
+            echo "feature_unsplit_apk_bundle_import=true"
+            echo "feature_framework_split_filtering=true"
+            echo "feature_auto_system_base_apk_source=true"
+            echo "feature_split_apk_merge=true"
             echo "post_release_upstream_sync=true"
-            echo "upstream_repo=${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}"
-            echo "upstream_branch=${{ github.event.inputs.upstream_branch || 'main' }}"
+            echo "upstream_repo=$UPSTREAM_REPO"
+            echo "upstream_branch=$UPSTREAM_BRANCH"
           } > artifacts/provenance/build-provenance.txt
           cat > artifacts/provenance/release-notes.md <<EOF
           # $RELEASE_NAME
@@ -183,6 +213,10 @@ jobs:
           - Patch source parser normalization for GitHub /releases URLs.
           - Remote patch source fallback names.
           - Explicit installed app source in APK source selector.
+          - Automatic system base APK source for split-installed apps.
+          - Unsplit/APK bundle import.
+          - Experimental split APK merge for dex/lib/assets payloads.
+          - Framework, overlay and config split filtering.
           - LocalHaos app update endpoint.
           - Build provenance attached as release asset.
 
@@ -200,6 +234,7 @@ jobs:
             artifacts/provenance/
             artifacts/reports/
             artifacts/logs/
+            artifacts/manifests/
           if-no-files-found: ignore
           retention-days: 14
 
@@ -266,10 +301,17 @@ jobs:
           test -f .github/workflows/release.yml
           test -f .github/workflows/upstream-sync-reverse-release.yml
           test -f .github/workflows/localhaos-dep-release-sync.yml
+          test -f app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          test -f app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "UnsplitRecoveredBaseApk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "MergedSplitBundle" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "mergeApkEntries" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "isRejectedFrameworkOrSplitEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "copySystemBaseApk" app/src/main/java/app/revanced/manager/util/SystemApkSource.kt app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
           grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
           grep -R "localhaos/revanced-manager/releases" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt .github/workflows/*.yml
           grep -R "Build next release, publish, then sync upstream" .github/workflows/localhaos-dep-release-sync.yml
@@ -279,8 +321,13 @@ jobs:
           fi
 
       - name: Push synced main with LocalHaos changes preserved
-        if: ${{ github.event.inputs.push_synced_main == 'true' || github.event.inputs.push_synced_main == '' }}
         shell: bash
+        env:
+          PUSH_SYNCED_MAIN: ${{ github.event.inputs.push_synced_main || 'true' }}
         run: |
           set -euo pipefail
-          git push origin HEAD:main
+          if [ "$PUSH_SYNCED_MAIN" = "true" ]; then
+            git push origin HEAD:main
+          else
+            echo "Skipping main push because PUSH_SYNCED_MAIN=$PUSH_SYNCED_MAIN"
+          fi
