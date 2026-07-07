@@ -18,6 +18,7 @@ sealed interface AppArchiveImportResult {
         PlainApk,
         SingleApkFromBundle,
         BaseApkFromSplitBundle,
+        UnsplitRecoveredBaseApk,
     }
 }
 
@@ -28,15 +29,10 @@ sealed interface AppArchiveImportResult {
  * - Plain APK files. APKs are ZIP files and must have a ZIP magic header.
  * - Bundle-like ZIP containers (.apks/.xapk/.apkm/.zip) when they contain exactly one APK entry.
  * - Anti-split mode for bundle-like containers when exactly one safe base APK can be resolved.
+ * - Unsplit recovery mode for split bundles when one preferred base/universal/standalone APK can be selected.
  *
- * Anti-split mode extracts only the canonical base APK candidate and refuses config/split-only bundles.
- * The patcher still receives a single monolithic input file path and never receives split_config APKs.
- *
- * Rejected:
- * - Files without a ZIP/APK magic header.
- * - ZIP containers without AndroidManifest.xml and without a nested APK.
- * - Split-only bundles with no base APK candidate.
- * - Bundles with multiple competing base APK candidates.
+ * This does not merge resource tables from split_config APKs. It intentionally recovers a single patcher input APK
+ * and refuses split-only or ambiguous bundles.
  */
 fun importSingleApkArchive(
     input: InputStream,
@@ -84,18 +80,7 @@ fun importSingleApkArchive(
                         }
                     }
 
-                    else -> {
-                        val baseCandidates = nestedApkEntries.filter { it.isLikelyBaseApkEntry() }
-                        when {
-                            baseCandidates.isEmpty() -> AppArchiveImportResult.SplitBundle
-                            baseCandidates.size > 1 -> AppArchiveImportResult.AmbiguousBaseApk
-                            else -> zip.extractApkEntry(
-                                baseCandidates.single(),
-                                outputApk,
-                                AppArchiveImportResult.SourceKind.BaseApkFromSplitBundle
-                            )
-                        }
-                    }
+                    else -> zip.resolveUnsplitCandidate(nestedApkEntries, outputApk)
                 }
             }
         } catch (_: ZipException) {
@@ -104,6 +89,39 @@ fun importSingleApkArchive(
     } finally {
         rawInput.delete()
     }
+}
+
+private fun ZipFile.resolveUnsplitCandidate(
+    apkEntries: List<ZipEntry>,
+    outputApk: File,
+): AppArchiveImportResult {
+    val rankedCandidates = apkEntries
+        .filterNot { it.isLikelySplitApkEntry() }
+        .mapNotNull { entry -> entry.unsplitRank()?.let { rank -> rank to entry } }
+        .sortedWith(compareBy<Pair<Int, ZipEntry>> { it.first }.thenByDescending { it.second.size })
+
+    val preferredRank = rankedCandidates.firstOrNull()?.first
+    val preferred = rankedCandidates.filter { it.first == preferredRank }.map { it.second }
+
+    val selected = when {
+        preferred.isEmpty() -> {
+            val nonSplit = apkEntries.filterNot { it.isLikelySplitApkEntry() }
+            when (nonSplit.size) {
+                0 -> return AppArchiveImportResult.SplitBundle
+                1 -> nonSplit.single()
+                else -> return AppArchiveImportResult.AmbiguousBaseApk
+            }
+        }
+
+        preferred.size == 1 -> preferred.single()
+        else -> return AppArchiveImportResult.AmbiguousBaseApk
+    }
+
+    return extractApkEntry(
+        selected,
+        outputApk,
+        AppArchiveImportResult.SourceKind.UnsplitRecoveredBaseApk
+    )
 }
 
 private fun ZipFile.extractApkEntry(
@@ -124,20 +142,24 @@ private fun File.hasZipMagicHeader(): Boolean = inputStream().use { input ->
     val header = ByteArray(4)
     if (input.read(header) != header.size) return@use false
 
-    // ZIP local file header, empty archive header or spanned archive header.
     header.contentEquals(byteArrayOf(0x50, 0x4B, 0x03, 0x04)) ||
             header.contentEquals(byteArrayOf(0x50, 0x4B, 0x05, 0x06)) ||
             header.contentEquals(byteArrayOf(0x50, 0x4B, 0x07, 0x08))
 }
 
-private fun ZipEntry.isLikelyBaseApkEntry(): Boolean {
+private fun ZipEntry.unsplitRank(): Int? {
     val normalized = name.substringAfterLast('/').lowercase()
-    return normalized == "base.apk" ||
-            normalized == "master.apk" ||
-            normalized == "universal.apk" ||
-            normalized == "standalone.apk" ||
-            normalized == "standalone-base.apk" ||
-            normalized.startsWith("base-") && normalized.endsWith(".apk")
+    return when {
+        normalized == "universal.apk" -> 0
+        normalized == "standalone.apk" -> 1
+        normalized == "standalone-base.apk" -> 2
+        normalized == "base.apk" -> 3
+        normalized == "master.apk" -> 4
+        normalized.startsWith("base-") && normalized.endsWith(".apk") -> 5
+        normalized.endsWith("-base.apk") -> 6
+        normalized.contains("base") && normalized.endsWith(".apk") -> 7
+        else -> null
+    }
 }
 
 private fun ZipEntry.isLikelySplitApkEntry(): Boolean {
@@ -148,5 +170,12 @@ private fun ZipEntry.isLikelySplitApkEntry(): Boolean {
             normalized.contains("dpi") ||
             normalized.contains("lang") ||
             normalized.contains("density") ||
-            normalized.contains("abi")
+            normalized.contains("abi") ||
+            normalized.contains("arm64") ||
+            normalized.contains("armeabi") ||
+            normalized.contains("x86") ||
+            normalized.contains("hdpi") ||
+            normalized.contains("xhdpi") ||
+            normalized.contains("xxhdpi") ||
+            normalized.contains("xxxhdpi")
 }
