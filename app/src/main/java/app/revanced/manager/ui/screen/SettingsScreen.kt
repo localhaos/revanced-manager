@@ -101,16 +101,16 @@ fun SettingsScreen(onBackClick: () -> Unit, navigate: (Settings.Destination) -> 
     )
     val context = LocalContext.current
     val powerManager = remember(context) { context.getSystemService<PowerManager>()!! }
-    
+
     var showBatteryOptimizationsWarning by remember {
         mutableStateOf(!powerManager.isIgnoringBatteryOptimizations(context.packageName))
     }
-    
+
     val batteryOptimizationsLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             showBatteryOptimizationsWarning = !powerManager.isIgnoringBatteryOptimizations(context.packageName)
         }
-    
+
     val appIcon = rememberDrawablePainter(
         drawable = remember(context) {
             AppCompatResources.getDrawable(context, R.drawable.ic_logo_ring)
@@ -134,6 +134,12 @@ fun SettingsScreen(onBackClick: () -> Unit, navigate: (Settings.Destination) -> 
             Section(
                 R.string.downloads,
                 R.string.downloads_description,
+                Icons.Outlined.Download,
+                Settings.Downloads
+            ),
+            Section(
+                R.string.patches,
+                R.string.import_patches,
                 Icons.Outlined.Download,
                 Settings.Downloads
             )
@@ -231,7 +237,7 @@ fun SettingsScreen(onBackClick: () -> Unit, navigate: (Settings.Destination) -> 
                         }
                     )
                 }
-                
+
                 ListSection {
                     generalSections.forEach { (name, description, icon, destination) ->
                         SettingsListItem(
@@ -247,7 +253,7 @@ fun SettingsScreen(onBackClick: () -> Unit, navigate: (Settings.Destination) -> 
                     advancedSections.forEach { (name, description, icon, destination) ->
                         val hasSafeguardWarning = destination == Settings.Advanced && safeguardsToggled
                         val supportingText = if (hasSafeguardWarning) {
-                            "Safeguards have been toggled"
+                            stringResource(R.string.safeguards_toggled_warning)
                         } else {
                             stringResource(description)
                         }
