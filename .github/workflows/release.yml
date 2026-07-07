@@ -2,18 +2,11 @@ name: Release
 
 on:
     workflow_dispatch:
-    push:
-        branches:
-            - main
-            - dev
-        paths-ignore:
-            - '.github/workflows/**'
-            - 'docs/**'
 
 jobs:
     release:
         name: Release
-        if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+        if: ${{ !contains(github.event.head_commit.message || '', '[skip ci]') }}
         permissions:
             contents: write
             packages: write
@@ -29,22 +22,16 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - name: Verify release checkout and Reverse 2.1 features
+            - name: Verify release checkout
               shell: bash
               run: |
                   set -euo pipefail
                   test "${{ github.repository }}" = "localhaos/revanced-manager"
                   git rev-parse HEAD
-                  test -f app/src/main/java/app/revanced/manager/util/GeneratedApkInstallHandler.kt
-                  test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
-                  test -f app/src/main/java/app/revanced/manager/ui/screen/settings/SourceVersionCompat.kt
-                  test -f app/src/main/java/app/revanced/manager/ui/screen/settings/SourceDisplayCompat.kt
-                  test -f docs/patch-bundle-sources.md
-                  grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-                  grep -R "PatchBundlesTabContent" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-                  grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-                  grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
-                  grep -R "version = 2.1.0" app/gradle.properties
+                  test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+                  test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+                  grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+                  grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
 
             - name: Setup Java
               uses: actions/setup-java@v5
@@ -56,8 +43,13 @@ jobs:
               uses: burrunan/gradle-cache-action@v3
 
             - name: Setup keystore
+              shell: bash
               run: |
+                  set -euo pipefail
                   echo "${{ secrets.KEYSTORE }}" | base64 --decode > "app/keystore.jks"
+                  test -s app/keystore.jks
+                  keytool -list -v -keystore app/keystore.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/tmp/keystore-list.txt
+                  sed -n '1,80p' /tmp/keystore-list.txt
 
             - name: Build
               env:
@@ -82,30 +74,6 @@ jobs:
                   passphrase: ${{ secrets.GPG_PASSPHRASE }}
                   fingerprint: ${{ vars.GPG_FINGERPRINT }}
 
-            - name: Generate fallback GPG key
-              if: env.GPG_PRIVATE_KEY_PRESENT != 'true'
-              shell: bash
-              run: |
-                  set -euo pipefail
-                  cat > gpg-batch <<'EOF'
-                  %no-protection
-                  Key-Type: eddsa
-                  Key-Curve: ed25519
-                  Key-Usage: sign
-                  Name-Real: GitHub Actions Release
-                  Name-Email: actions@users.noreply.github.com
-                  Expire-Date: 0
-                  EOF
-                  gpg --batch --generate-key gpg-batch
-                  rm -f gpg-batch
-                  fingerprint="$(gpg --batch --list-secret-keys --with-colons actions@users.noreply.github.com | awk -F: '/^fpr:/ { print $10; exit }')"
-                  test -n "$fingerprint"
-                  git config --global user.signingkey "$fingerprint"
-                  git config --global commit.gpgsign false
-                  git config --global tag.gpgsign false
-                  gpg --batch --list-secret-keys --keyid-format LONG
-                  echo "Generated fallback GPG fingerprint: $fingerprint"
-
             - name: Release API
               run: npx multi-semantic-release --debug --tag-format 'api@${version}' --ignore-packages app
               env:
@@ -115,8 +83,7 @@ jobs:
 
             - name: Release
               id: release
-              run: |
-                  npx multi-semantic-release --debug --tag-format 'v${version}' --ignore-packages api
+              run: npx multi-semantic-release --debug --tag-format 'v${version}' --ignore-packages api
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
