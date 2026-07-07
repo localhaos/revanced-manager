@@ -1,0 +1,17 @@
+LocalHaos DEP Release Sync trigger.
+
+Purpose:
+- build next LocalHaos release
+- publish APK release
+- sync upstream ReVanced main after publication
+- re-assert LocalHaos changes after sync
+
+Included guarded features:
+- online patch browser
+- patch parser fixes
+- installed app source
+- unsplit APK bundle import
+- split APK merge
+- automatic system base APK source
+- framework/config split filtering
+- localhaos app update endpoint
