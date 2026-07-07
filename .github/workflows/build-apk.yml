@@ -62,6 +62,7 @@ jobs:
           test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           test -f app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
           test -f app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          test -f app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
           grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
@@ -72,6 +73,9 @@ jobs:
           grep -R "unsplitRank" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "isRejectedFrameworkOrSplitEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "framework-res.apk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "copySystemBaseApk" app/src/main/java/app/revanced/manager/util/SystemApkSource.kt app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
+          grep -R "systemBaseInputFile" app/src/main/java/app/revanced/manager/ui/viewmodel/SelectedAppInfoViewModel.kt
+          grep -R "sourceDir" app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
           grep -R "version = $LOCALHAOS_VERSION" app/gradle.properties
           mkdir -p artifacts/provenance
@@ -88,6 +92,7 @@ jobs:
             echo "feature_localhaos_app_update=true"
             echo "feature_unsplit_apk_bundle_import=true"
             echo "feature_framework_split_filtering=true"
+            echo "feature_auto_system_base_apk_source=true"
           } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
