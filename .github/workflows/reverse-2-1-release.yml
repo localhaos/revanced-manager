@@ -11,6 +11,12 @@ on:
         description: Release title
         required: true
         default: Reverse 2.1
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'docs/patch-bundle-sources.md'
 
 permissions:
   contents: write
@@ -28,6 +34,8 @@ env:
   ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
   GITHUB_ACTOR: ${{ github.actor }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  REVERSE_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'v2.1.0' }}
+  REVERSE_RELEASE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.release_name || 'Reverse 2.1' }}
 
 jobs:
   release:
@@ -88,8 +96,8 @@ jobs:
             echo "ref=${{ github.ref }}"
             echo "sha=$(git rev-parse HEAD)"
             echo "run_id=${{ github.run_id }}"
-            echo "tag=${{ inputs.tag }}"
-            echo "release_name=${{ inputs.release_name }}"
+            echo "tag=$REVERSE_RELEASE_TAG"
+            echo "release_name=$REVERSE_RELEASE_NAME"
             echo "version=2.1.0"
             echo "build_label=reverse-2.1"
             echo "feature_patch_bundle_tab=true"
@@ -126,17 +134,15 @@ EOF
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ inputs.tag }}
-          RELEASE_NAME: ${{ inputs.release_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f "$RELEASE_TAG" "$GITHUB_SHA"
-          git push origin "refs/tags/$RELEASE_TAG" --force
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
+          git tag -f "$REVERSE_RELEASE_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$REVERSE_RELEASE_TAG" --force
+          if gh release view "$REVERSE_RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$REVERSE_RELEASE_TAG" --title "$REVERSE_RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
+            gh release create "$REVERSE_RELEASE_TAG" --title "$REVERSE_RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
           fi
-          gh release upload "$RELEASE_TAG" artifacts/apk/* artifacts/provenance/build-provenance.txt --clobber
+          gh release upload "$REVERSE_RELEASE_TAG" artifacts/apk/* artifacts/provenance/build-provenance.txt --clobber
