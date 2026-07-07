@@ -173,7 +173,12 @@ class PatchBundleRepository(
 
         val output = buildMap {
             metadata.forEach { (bundle, result) ->
-                val src = map[bundle]!!
+                val src = map[bundle]
+                if (src == null) {
+                    Log.w(tag, "Ignoring metadata for an unknown patch bundle: ${bundle.patchesJar}")
+                    return@forEach
+                }
+
                 val error = result.exceptionOrNull()
                 if (error != null) {
                     sources[src.uid] = src.copy(error = error)
@@ -188,14 +193,9 @@ class PatchBundleRepository(
                     return@forEach
                 }
 
-                val bundleType = detectBundleType(
-                    source = src,
-                    bundle = bundle,
-                )
-
                 this[src.uid] = PatchBundleInfo.Global(
                     src.name,
-                    bundleType,
+                    detectBundleType(src, bundle),
                     bundle.manifestAttributes?.version,
                     (src as? RemotePatchBundle)?.releasedAt,
                     src.uid,
@@ -219,22 +219,16 @@ class PatchBundleRepository(
         override fun load(file: File) = PatchBundle(file.absolutePath)
 
         private fun detectBundleType(source: PatchBundleSource, bundle: PatchBundle): PatchBundleType {
-            val endpoint = (source as? RemotePatchBundle)?.endpoint.orEmpty()
+            val endpoint = (source as? RemotePatchBundle)?.endpoint
             val manifest = bundle.manifestAttributes
-            val haystack = listOf(
+            return PatchBundleType.detect(
                 endpoint,
                 source.name,
-                manifest?.name.orEmpty(),
-                manifest?.source.orEmpty(),
-                manifest?.website.orEmpty(),
-                manifest?.description.orEmpty(),
-            ).joinToString("\n").lowercase()
-
-            return when {
-                haystack.contains(".arp") || haystack.contains("ample") -> PatchBundleType.AMPLE
-                haystack.contains(".mpp") || haystack.contains("morphe") || haystack.contains("hoo-dles") -> PatchBundleType.MORPHE
-                else -> PatchBundleType.REVANCED
-            }
+                manifest?.name,
+                manifest?.source,
+                manifest?.website,
+                manifest?.description,
+            )
         }
 
         private fun List<PatchInfo>.validateParsedPatchList(sourceName: String): Throwable? {
