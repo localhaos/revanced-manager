@@ -178,11 +178,8 @@ fun SelectedAppInfoScreen(
             )
         },
         floatingActionButton = {
-            // Hide the FAB when no patches are selected.
             if (selectedPatchCount == 0) return@Scaffold
 
-            // Only hide the FAB for errors that genuinely block patching.
-            // No-downloader errors are NOT blocking because the storage picker is the fallback.
             val blockingError = error?.takeIf {
                 it != SelectedAppInfoViewModel.Error.NoDownloadersInstalled
             }
@@ -197,9 +194,6 @@ fun SelectedAppInfoScreen(
                     )
                 },
                 onClick = patchClick@{
-                    // If the selected source is Auto (Search) but nothing can be resolved
-                    // (no installed app, no downloaded APK, no downloader), prompt the user
-                    // to pick an APK from storage instead of failing silently.
                     if (vm.selectedApp is SelectedApp.Search &&
                         vm.resolveAutoSource(vm.selectedApp.version) is SelectedApp.Search &&
                         downloaders.isEmpty()
@@ -335,8 +329,6 @@ fun SelectedAppInfoScreen(
                     vm.showSourceSelector()
                 }
             )
-            // Only show inline error text for truly blocking errors, not no-downloader
-            // errors which are handled gracefully via the storage picker fallback.
             val inlineError = error?.takeIf {
                 it != SelectedAppInfoViewModel.Error.NoDownloadersInstalled
             }
@@ -533,6 +525,7 @@ private fun AppSourceSelectorDialog(
     onSelect: (SelectedApp) -> Unit,
 ) {
     val canSelect = activeSearchJob == null
+    val installedSelection = autoSelection as? SelectedApp.Installed
 
     AlertDialogExtended(
         onDismissRequest = onDismissRequest,
@@ -550,7 +543,7 @@ private fun AppSourceSelectorDialog(
                     val hasDownloaded =
                         downloadedApps.any { app -> requiredVersion == null || app.version == requiredVersion }
                     val hasAutoSource =
-                        hasDownloader || hasDownloaded || autoSelection is SelectedApp.Installed
+                        hasDownloader || hasDownloaded || installedSelection != null
                     ListItem(
                         modifier = Modifier
                             .clickable(enabled = canSelect && hasAutoSource) { onSelectAuto() }
@@ -566,6 +559,31 @@ private fun AppSourceSelectorDialog(
                         },
                         colors = transparentListItemColors
                     )
+                }
+
+                installedSelection?.let { installedApp ->
+                    item(key = "installed_app") {
+                        val usable = requiredVersion == null || installedApp.version == requiredVersion
+                        ListItem(
+                            modifier = Modifier
+                                .clickable(enabled = canSelect && usable) { onSelect(installedApp) }
+                                .enabled(usable),
+                            headlineContent = { Text(stringResource(R.string.apk_source_installed)) },
+                            supportingContent = {
+                                Text(
+                                    if (usable) {
+                                        installedApp.version ?: stringResource(R.string.selected_app_meta_any_version)
+                                    } else {
+                                        stringResource(
+                                            R.string.app_source_dialog_option_installed_version_not_suggested,
+                                            installedApp.version ?: stringResource(R.string.selected_app_meta_any_version)
+                                        )
+                                    }
+                                )
+                            },
+                            colors = transparentListItemColors
+                        )
+                    }
                 }
 
                 items(
