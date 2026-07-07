@@ -15,3 +15,6 @@ Included guarded features:
 - automatic system base APK source
 - framework/config split filtering
 - localhaos app update endpoint
+
+Rerun reason:
+- fixed Android versionCode parser for LocalHaos suffix versions such as 2.1.X-localhaos
