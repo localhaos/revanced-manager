@@ -11,6 +11,8 @@ Included guarded features:
 - patch parser fixes
 - Jman-Github ReVanced-Patch-Bundles raw JSON metadata support
 - GitHub blob JSON to raw JSON normalization
+- hoo-dles/morphe-patches raw patches-bundle.json compatibility
+- hoo-dles/morphe-patches release .mpp compatibility
 - detected patch bundle visibility even when app-specific filter is empty
 - isolated broken/empty patch bundle handling
 - duplicate ReVanced patch display names allowed
@@ -26,15 +28,7 @@ Included guarded features:
 - localhaos app update endpoint
 
 Rerun reason:
-- fixed Android versionCode parser for LocalHaos suffix versions such as 2.1.X-localhaos
-- fixed AppArchiveImport KDoc Kotlin parse failure
-- added guard that rejects parsed patch bundles with zero visible patches before UI display
-- fixed DEP upstream sync to fetch only upstream/main with --no-tags and avoid upstream dev tag conflicts
-- added Jman catalog generated patches-bundle.json parser support
-- cleaned source display names and vnull rendering
-- fixed patch detection so valid bundles remain detected even when no patches match the currently selected package
-- fixed Source.kt syntax error caused by stray trailing brace
-- fixed ArrayIndexOutOfBoundsException from empty/invalid patch bundle files by parsing each source independently
-- fixed duplicate patch display names such as ReVanced 'Hide ads' being incorrectly rejected
-- fixed ClassNotFoundException/NoClassDefFoundError from incompatible Morphe patch bundles so they fail per-source only
-- added real Morphe runtime support via MorpheApp package registry and runtime libraries
+- analyzed hoo-dles/morphe-patches
+- confirmed it publishes patches-bundle.json with download_url to release .mpp
+- confirmed no local compilation is required for Manager consumption
+- build/publish after adding Morphe runtime support required by Hoodles/ProGuard/Lain/Edge Morphe patch bundles
