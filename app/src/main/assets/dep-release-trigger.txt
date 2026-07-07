@@ -12,6 +12,7 @@ Included guarded features:
 - Jman-Github ReVanced-Patch-Bundles raw JSON metadata support
 - GitHub blob JSON to raw JSON normalization
 - detected patch bundle visibility even when app-specific filter is empty
+- isolated broken/empty patch bundle handling
 - installed app source
 - unsplit APK bundle import
 - split APK merge
@@ -28,3 +29,4 @@ Rerun reason:
 - cleaned source display names and vnull rendering
 - fixed patch detection so valid bundles remain detected even when no patches match the currently selected package
 - fixed Source.kt syntax error caused by stray trailing brace
+- fixed ArrayIndexOutOfBoundsException from empty/invalid patch bundle files by parsing each source independently
