@@ -20,6 +20,7 @@ datetime = "0.7.1"
 room-version = "2.8.4"
 revanced-patcher = "22.0.2-dev.1"
 revanced-library = "4.0.0"
+morphe-patches-library = "1.4.0-dev.5"
 koin = "4.2.1"
 ktor = "3.4.3"
 markdown-renderer = "0.40.2"
@@ -51,7 +52,7 @@ runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", ver
 splash-screen = { module = "androidx.core:core-splashscreen", version.ref = "splash-screen" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
 fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }
-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work-runtime" }
+work-runtime-ktx = { module = "androidx.work:work-runtime", version.ref = "work-runtime" }
 preferences-datastore = { module = "androidx.datastore:datastore-preferences", version.ref = "preferences-datastore" }
 appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
 
@@ -89,6 +90,8 @@ room-compiler = { module = "androidx.room:room-compiler", version.ref = "room-ve
 # Patcher
 revanced-patcher = { module = "app.revanced:patcher-android", version.ref = "revanced-patcher" }
 revanced-library = { module = "app.revanced:library-android", version.ref = "revanced-library" }
+morphe-patches-library = { module = "app.morphe:morphe-patches-library", version.ref = "morphe-patches-library" }
+morphe-extensions-library = { module = "app.morphe:morphe-extensions-library", version.ref = "morphe-patches-library" }
 
 # Koin
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
