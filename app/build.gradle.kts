@@ -58,6 +58,8 @@ dependencies {
     implementation(libs.revanced.library)
     implementation(libs.morphe.patches.library)
     implementation(libs.morphe.extensions.library)
+    implementation(libs.ample.patcher)
+    implementation(libs.ample.library)
 
     implementation(project(":api"))
     implementation(libs.kotlin.process)
