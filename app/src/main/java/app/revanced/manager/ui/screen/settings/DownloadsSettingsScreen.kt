@@ -92,23 +92,63 @@ private data class OnlinePatchSource(
 private val onlinePatchSources = listOf(
     OnlinePatchSource(
         name = "ReVanced official patches",
-        description = "Official network patch bundle source",
+        description = "Official ReVanced latest release API source",
         url = "https://api.github.com/repos/ReVanced/revanced-patches/releases/latest"
     ),
     OnlinePatchSource(
         name = "ReVanced official patches releases",
-        description = "GitHub releases API source for official patches",
+        description = "Official ReVanced releases list API source",
         url = "https://api.github.com/repos/ReVanced/revanced-patches/releases"
     ),
     OnlinePatchSource(
+        name = "RVX patches",
+        description = "inotia00 latest release API source",
+        url = "https://api.github.com/repos/inotia00/revanced-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "RVX patches releases",
+        description = "inotia00 releases list API source",
+        url = "https://api.github.com/repos/inotia00/revanced-patches/releases"
+    ),
+    OnlinePatchSource(
+        name = "Anddea patches",
+        description = "anddea latest release API source",
+        url = "https://api.github.com/repos/anddea/revanced-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "Anddea patches releases",
+        description = "anddea releases list API source",
+        url = "https://api.github.com/repos/anddea/revanced-patches/releases"
+    ),
+    OnlinePatchSource(
+        name = "ReX patches",
+        description = "YT-Advanced ReX latest release API source",
+        url = "https://api.github.com/repos/YT-Advanced/ReX-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "ReX patches releases",
+        description = "YT-Advanced ReX releases list API source",
+        url = "https://api.github.com/repos/YT-Advanced/ReX-patches/releases"
+    ),
+    OnlinePatchSource(
         name = "Morphe patches",
-        description = "Morphe network source candidate",
+        description = "Morphe latest release API source candidate",
         url = "https://api.github.com/repos/Morphe-Project/revanced-patches/releases/latest"
     ),
     OnlinePatchSource(
-        name = "RVX patches",
-        description = "inotia00/RVX network source candidate",
-        url = "https://api.github.com/repos/inotia00/revanced-patches/releases/latest"
+        name = "Morphe patches releases",
+        description = "Morphe releases list API source candidate",
+        url = "https://api.github.com/repos/Morphe-Project/revanced-patches/releases"
+    ),
+    OnlinePatchSource(
+        name = "J-HC patches",
+        description = "j-hc latest release API source candidate",
+        url = "https://api.github.com/repos/j-hc/revanced-patches/releases/latest"
+    ),
+    OnlinePatchSource(
+        name = "J-HC patches releases",
+        description = "j-hc releases list API source candidate",
+        url = "https://api.github.com/repos/j-hc/revanced-patches/releases"
     )
 )
 
@@ -453,7 +493,7 @@ private fun PatchBundleItem(source: Source<PatchBundle>) {
 @Composable
 private fun <T> SourceItem(
     source: Source<T>,
-    onClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null
 ) {
     ListItem(
         modifier = onClick?.let { Modifier.clickable(onClick = it) } ?: Modifier,
