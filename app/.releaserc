@@ -17,7 +17,12 @@
     ],
     "@semantic-release/release-notes-generator",
     "@semantic-release/changelog",
-    "gradle-semantic-release-plugin",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "printf 'version = ${nextRelease.version}\\n' > gradle.properties && ../gradlew --no-daemon --stacktrace :app:assembleRelease -PsignAsDebug -PmanagerVersion=${nextRelease.version} -PmanagerBuildLabel=v${nextRelease.version}"
+      }
+    ],
     [
       "@semantic-release/git",
       {
