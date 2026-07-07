@@ -98,8 +98,9 @@ class JsonSource<T>(
                 .asset
         }
 
+        val metadataEndpoint = GitHubBundleAutoFinder.metadataEndpointFrom(endpoint) ?: endpoint
         http.request<ReVancedAsset> {
-            url(endpoint)
+            url(metadataEndpoint)
         }.getOrThrow()
     }
 
