@@ -20,3 +20,4 @@ Rerun reason:
 - fixed Android versionCode parser for LocalHaos suffix versions such as 2.1.X-localhaos
 - fixed AppArchiveImport KDoc Kotlin parse failure
 - added guard that rejects parsed patch bundles with zero visible patches before UI display
+- fixed DEP upstream sync to fetch only upstream/main with --no-tags and avoid upstream dev tag conflicts
