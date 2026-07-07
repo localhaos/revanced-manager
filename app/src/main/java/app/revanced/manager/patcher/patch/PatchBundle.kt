@@ -67,7 +67,7 @@ data class PatchBundle(val patchesJar: String) : Parcelable {
                     var failure: Throwable? = null
                     val loaded = loadPatches(
                         file,
-                        onFailedToLoad = { _, throwable -> failure = throwable }
+                        onFailedToLoad = { _, throwable -> failure = throwable.asPatchBundleLoadFailure(file) }
                     ).patchesByFile[file]
 
                     when {
@@ -78,7 +78,7 @@ data class PatchBundle(val patchesJar: String) : Parcelable {
                         )
                     }
                 } catch (throwable: Throwable) {
-                    this[bundle] = Result.failure(throwable)
+                    this[bundle] = Result.failure(throwable.asPatchBundleLoadFailure(file))
                 }
             }
         }
@@ -116,6 +116,39 @@ data class PatchBundle(val patchesJar: String) : Parcelable {
             !isFile -> IOException("Patch bundle path is not a file: $absolutePath")
             length() <= 0L -> IOException("Patch bundle file is empty: $absolutePath")
             else -> null
+        }
+
+        private fun Throwable.asPatchBundleLoadFailure(file: File): Throwable {
+            val missingClass = missingRuntimeClassName()
+                ?: return this
+
+            return IOException(
+                "Patch bundle '${file.name}' references missing runtime class '$missingClass'. " +
+                        "This bundle is not compatible with the current ReVanced patcher runtime or is incomplete.",
+                this
+            )
+        }
+
+        private fun Throwable.missingRuntimeClassName(): String? {
+            var current: Throwable? = this
+            while (current != null) {
+                when (current) {
+                    is ClassNotFoundException -> return current.message
+                        ?.lineSequence()
+                        ?.firstOrNull()
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+
+                    is NoClassDefFoundError -> return current.message
+                        ?.replace('/', '.')
+                        ?.lineSequence()
+                        ?.firstOrNull()
+                        ?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                }
+                current = current.cause
+            }
+            return null
         }
     }
 }
