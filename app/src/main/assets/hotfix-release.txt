@@ -1,26 +1,9 @@
-Reverse 2.1.5 final release marker.
+Reverse 2.1.5 parser fix release marker.
 
-Included changes:
-- explicit Installed app source in APK source selector
-- online patch browser in Patches settings
-- expanded online patch source catalog
-- localhaos GitHub manager update source
-- APK build provenance checks
-- release checkout verification
-- generated APK install handler
-- installed app source flow
-- GitHub bundle recognition
-- Morphe patch index diagnostics
-- KSP source-set placeholders
-- Downloads settings Patches tab
-- patch bundle source URL import
-- patch bundle source local file import
-- source version wrapper converters
-- source display wrapper helpers
+Parser fixes:
+- GitHub releases list URLs are normalized to latest release
+- patch source names are inferred from remote URLs
+- unloaded patch sources no longer render vnull
 
 Release trigger:
-- publish final v2.1.5-localhaos through Upstream Sync Reverse Release workflow
-- official upstream ReVanced sync checked
-- independent LocalHaos APK release requested
-- final release trigger after workflow cleanup
-- APK publish requested after simplified release workflow fix
+- publish v2.1.5-localhaos after parser fixes
