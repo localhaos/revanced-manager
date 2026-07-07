@@ -70,6 +70,8 @@ jobs:
           grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "UnsplitRecoveredBaseApk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "unsplitRank" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "isRejectedFrameworkOrSplitEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "framework-res.apk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
           grep -R "version = $LOCALHAOS_VERSION" app/gradle.properties
           mkdir -p artifacts/provenance
@@ -85,6 +87,7 @@ jobs:
             echo "feature_patch_parser_release_list_normalization=true"
             echo "feature_localhaos_app_update=true"
             echo "feature_unsplit_apk_bundle_import=true"
+            echo "feature_framework_split_filtering=true"
           } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
