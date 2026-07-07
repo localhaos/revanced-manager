@@ -1,9 +1,9 @@
 package app.revanced.manager.patcher.patch
 
-import kotlinx.parcelize.IgnoredOnParcel
 import android.os.Parcelable
 import app.revanced.patcher.patch.Patch
 import app.revanced.patcher.patch.loadPatches
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import java.io.File
 import java.io.IOException
@@ -55,15 +55,31 @@ data class PatchBundle(val patchesJar: String) : Parcelable {
 
     object Loader {
         private fun patches(bundles: Iterable<PatchBundle>) = buildMap {
-            val bundleMap = bundles.associateBy { it.patchesJar }
-
-            loadPatches(
-                *bundleMap.keys.map(::File).toTypedArray(),
-                onFailedToLoad = { file, throwable ->
-                    this[bundleMap[file.absolutePath]!!] = Result.failure(throwable)
+            bundles.forEach { bundle ->
+                val file = File(bundle.patchesJar)
+                val preflightError = file.preflightPatchBundleError()
+                if (preflightError != null) {
+                    this[bundle] = Result.failure(preflightError)
+                    return@forEach
                 }
-            ).patchesByFile.forEach { (file, patches) ->
-                putIfAbsent(bundleMap[file.absolutePath]!!, Result.success(patches))
+
+                try {
+                    var failure: Throwable? = null
+                    val loaded = loadPatches(
+                        file,
+                        onFailedToLoad = { _, throwable -> failure = throwable }
+                    ).patchesByFile[file]
+
+                    when {
+                        failure != null -> this[bundle] = Result.failure(failure!!)
+                        loaded != null -> this[bundle] = Result.success(loaded)
+                        else -> this[bundle] = Result.failure(
+                            IOException("Patch bundle '${file.name}' did not produce patch metadata")
+                        )
+                    }
+                } catch (throwable: Throwable) {
+                    this[bundle] = Result.failure(throwable)
+                }
             }
         }
 
@@ -94,5 +110,12 @@ data class PatchBundle(val patchesJar: String) : Parcelable {
                     true
                 }
             }
+
+        private fun File.preflightPatchBundleError(): Throwable? = when {
+            !exists() -> IOException("Patch bundle file is missing: $absolutePath")
+            !isFile -> IOException("Patch bundle path is not a file: $absolutePath")
+            length() <= 0L -> IOException("Patch bundle file is empty: $absolutePath")
+            else -> null
+        }
     }
 }
