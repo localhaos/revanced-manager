@@ -1,0 +1,5 @@
+Hotfix release marker.
+
+Reason:
+- trigger semantic-release from app/** after v1.1.0
+- ensure the next release contains post-release build and KSP source-set fixes
