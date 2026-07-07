@@ -31,19 +31,19 @@ import app.revanced.manager.domain.repository.InstalledAppRepository
 import app.revanced.manager.domain.repository.PatchBundleRepository
 import app.revanced.manager.domain.repository.PatchOptionsRepository
 import app.revanced.manager.domain.repository.PatchSelectionRepository
+import app.revanced.manager.downloader.DownloaderHostApi
+import app.revanced.manager.downloader.GetScope
+import app.revanced.manager.downloader.Scope
+import app.revanced.manager.downloader.UserInteractionException
 import app.revanced.manager.network.downloader.LoadedDownloader
 import app.revanced.manager.network.downloader.ParceledDownloaderData
 import app.revanced.manager.patcher.patch.PatchBundleInfo
 import app.revanced.manager.patcher.patch.PatchBundleInfo.Extensions.requiredOptionsSet
 import app.revanced.manager.patcher.patch.PatchBundleInfo.Extensions.toPatchSelection
-import app.revanced.manager.downloader.GetScope
-import app.revanced.manager.downloader.DownloaderHostApi
-import app.revanced.manager.downloader.Scope
-import app.revanced.manager.downloader.UserInteractionException
 import app.revanced.manager.ui.model.SelectedApp
 import app.revanced.manager.ui.model.navigation.Patcher
 import app.revanced.manager.ui.model.navigation.SelectedApplicationInfo
-import app.revanced.manager.util.APK_MIMETYPE
+import app.revanced.manager.util.ApkSourceResolver
 import app.revanced.manager.util.Options
 import app.revanced.manager.util.PM
 import app.revanced.manager.util.PatchSelection
@@ -51,7 +51,6 @@ import app.revanced.manager.util.isSplitApk
 import app.revanced.manager.util.simpleMessage
 import app.revanced.manager.util.tag
 import app.revanced.manager.util.toast
-import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -283,24 +282,24 @@ class SelectedAppInfoViewModel(
         storageSelectionChannel.send(selectedApp)
     }
 
-    private fun loadSelectedStorageFile(uri: Uri) =
-        app.contentResolver.getType(uri)?.takeIf { it == APK_MIMETYPE || it.startsWith("application/") }
-            ?.let {
-                app.contentResolver.openInputStream(uri)?.use { stream ->
-                    with(sourceInputFile) {
-                        delete()
-                        Files.copy(stream, toPath())
-                        pm.getPackageInfo(this)?.let { info ->
-                            SelectedApp.Local(
-                                packageName = info.packageName,
-                                version = info.versionName!!,
-                                file = this,
-                                temporary = true
-                            )
-                        }
-                    }
-                }
-            }
+    private fun loadSelectedStorageFile(uri: Uri): SelectedApp.Local? {
+        return app.contentResolver.openInputStream(uri)?.use { stream ->
+            val info = ApkSourceResolver.resolve(
+                input = stream,
+                outputFile = sourceInputFile,
+                scratchDir = fs.uiTempDir,
+                pm = pm,
+                expectedPackageName = packageName,
+            ) ?: return null
+
+            SelectedApp.Local(
+                packageName = info.packageName,
+                version = info.versionName ?: return null,
+                file = sourceInputFile,
+                temporary = true
+            )
+        }
+    }
 
     private fun cancelDownloaderAction() {
         downloaderAction?.second?.cancel()
@@ -458,33 +457,12 @@ class SelectedAppInfoViewModel(
                             // Get all valid option keys for the patch.
                             val validOptionKeys =
                                 patches[patchName]?.options?.map { it.name }?.toSet() ?: return@patch
-
-                            this@bundleOptions[patchName] = values.filterKeys { key ->
-                                key in validOptionKeys
+                            values.forEach values@{ (key, value) ->
+                                if (key in validOptionKeys) this@bundleOptions[key] = value
                             }
                         }
                     }
                 }
             }
-    }
-}
-
-private sealed interface SelectionState : Parcelable {
-    fun patches(bundles: List<PatchBundleInfo.Scoped>, allowIncompatible: Boolean): PatchSelection
-
-    @Parcelize
-    data class Customized(val patchSelection: PatchSelection) : SelectionState {
-        override fun patches(bundles: List<PatchBundleInfo.Scoped>, allowIncompatible: Boolean) =
-            bundles.toPatchSelection(
-                allowIncompatible
-            ) { uid, patch ->
-                patchSelection[uid]?.contains(patch.name) ?: false
-            }
-    }
-
-    @Parcelize
-    data object Default : SelectionState {
-        override fun patches(bundles: List<PatchBundleInfo.Scoped>, allowIncompatible: Boolean) =
-            bundles.toPatchSelection(allowIncompatible) { _, patch -> patch.include }
     }
 }
