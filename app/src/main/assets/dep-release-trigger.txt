@@ -14,6 +14,7 @@ Included guarded features:
 - detected patch bundle visibility even when app-specific filter is empty
 - isolated broken/empty patch bundle handling
 - duplicate ReVanced patch display names allowed
+- missing Morphe runtime class isolation
 - installed app source
 - unsplit APK bundle import
 - split APK merge
@@ -32,3 +33,4 @@ Rerun reason:
 - fixed Source.kt syntax error caused by stray trailing brace
 - fixed ArrayIndexOutOfBoundsException from empty/invalid patch bundle files by parsing each source independently
 - fixed duplicate patch display names such as ReVanced 'Hide ads' being incorrectly rejected
+- fixed ClassNotFoundException/NoClassDefFoundError from incompatible Morphe patch bundles so they fail per-source only
