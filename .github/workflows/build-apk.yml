@@ -28,15 +28,9 @@ env:
 
 jobs:
   build:
-    name: Build release APK ${{ matrix.label }}
+    name: Build release APK localhaos-current
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: localhaos-reverse-2.1.5
-            version: 2.1.5-localhaos
 
     steps:
       - name: Checkout
@@ -44,7 +38,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify checkout and LocalHaos GUI features
+      - name: Resolve LocalHaos build metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' app/gradle.properties | head -n 1)"
+          test -n "$version"
+          label="localhaos-reverse-${version%-localhaos}"
+          label="${label// /-}"
+          echo "LOCALHAOS_VERSION=$version" >> "$GITHUB_ENV"
+          echo "LOCALHAOS_BUILD_LABEL=$label" >> "$GITHUB_ENV"
+          echo "Resolved version: $version"
+          echo "Resolved label: $label"
+
+      - name: Verify checkout and LocalHaos GUI/parser/update features
         shell: bash
         run: |
           set -euo pipefail
@@ -52,21 +59,28 @@ jobs:
           git rev-parse HEAD
           test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          test -f app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
           grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          grep -R "version = 2.1.5-localhaos" app/gradle.properties
+          grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
+          grep -R "version = $LOCALHAOS_VERSION" app/gradle.properties
           mkdir -p artifacts/provenance
           {
             echo "repository=${{ github.repository }}"
             echo "ref=${{ github.ref }}"
             echo "sha=$(git rev-parse HEAD)"
             echo "run_id=${{ github.run_id }}"
-            echo "build_label=${{ matrix.label }}"
-            echo "version=${{ matrix.version }}"
+            echo "build_label=$LOCALHAOS_BUILD_LABEL"
+            echo "version=$LOCALHAOS_VERSION"
             echo "feature_online_patch_browser=true"
             echo "feature_installed_app_source=true"
+            echo "feature_patch_parser_release_list_normalization=true"
+            echo "feature_localhaos_app_update=true"
           } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
@@ -90,14 +104,14 @@ jobs:
           java -version
           ./gradlew --version
           git rev-parse HEAD
-          echo "Build label: ${{ matrix.label }}"
-          echo "Version: ${{ matrix.version }}"
+          echo "Build label: $LOCALHAOS_BUILD_LABEL"
+          echo "Version: $LOCALHAOS_VERSION"
 
       - name: Build release APK
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=${{ matrix.version }} -PmanagerBuildLabel=${{ matrix.label }}
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion="$LOCALHAOS_VERSION" -PmanagerBuildLabel="$LOCALHAOS_BUILD_LABEL" 2>&1 | tee artifacts/provenance/gradle-build.log
 
       - name: Collect build outputs
         if: always()
@@ -114,7 +128,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: revanced-manager-apk-${{ matrix.label }}-${{ github.sha }}
+          name: revanced-manager-apk-${{ env.LOCALHAOS_BUILD_LABEL }}-${{ github.sha }}
           path: |
             artifacts/apk/
             artifacts/provenance/
@@ -125,7 +139,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: revanced-manager-build-diagnostics-${{ matrix.label }}-${{ github.sha }}
+          name: revanced-manager-build-diagnostics-${{ env.LOCALHAOS_BUILD_LABEL }}-${{ github.sha }}
           path: |
             artifacts/reports/
             artifacts/logs/
