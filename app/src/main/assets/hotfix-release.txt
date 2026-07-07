@@ -1,5 +1,12 @@
-Hotfix release marker.
+Reverse 2.1 release marker.
 
-Reason:
-- trigger semantic-release from app/** after v1.1.0
-- ensure the next release contains post-release build and KSP source-set fixes
+Included changes:
+- localhaos GitHub manager update source
+- release time compatibility helper
+- APK build provenance checks
+- release checkout verification
+- generated APK install handler
+- installed app source flow
+- GitHub bundle recognition
+- Morphe patch index diagnostics
+- KSP source-set placeholders
