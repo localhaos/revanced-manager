@@ -35,10 +35,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: v7
-            version: 7.0.0
-          - label: v8
-            version: 8.0.0
+          - label: stable-local
+            version: 2.6.0-local.1
+          - label: stable-local-debugsigned
+            version: 2.6.0-local.1
 
     steps:
       - name: Checkout
@@ -106,4 +106,4 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-# build trigger: 2026-07-07 apk artifacts
+# build trigger: updated local app version
