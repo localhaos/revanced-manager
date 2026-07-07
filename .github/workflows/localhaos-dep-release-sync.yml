@@ -283,7 +283,8 @@ jobs:
           set -euo pipefail
           git remote remove upstream >/dev/null 2>&1 || true
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch upstream "$UPSTREAM_BRANCH" --tags
+          git config remote.upstream.tagOpt --no-tags
+          git fetch --no-tags --prune upstream "+refs/heads/${UPSTREAM_BRANCH}:refs/remotes/upstream/${UPSTREAM_BRANCH}"
           before_sha="$(git rev-parse HEAD)"
           upstream_sha="$(git rev-parse "upstream/$UPSTREAM_BRANCH")"
           echo "Local before sync: $before_sha"
