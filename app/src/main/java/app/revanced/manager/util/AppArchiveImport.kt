@@ -33,10 +33,10 @@ sealed interface AppArchiveImportResult {
  * - Bundle-like ZIP containers (.apks/.xapk/.apkm/.zip) when they contain exactly one APK entry.
  * - Anti-split mode for bundle-like containers when exactly one safe base APK can be resolved.
  * - Unsplit recovery mode for split bundles when one preferred base/universal/standalone APK can be selected.
- * - Experimental APK merge mode: base APK + safe split payload entries are packed into one APK.
+ * - Experimental APK merge mode: base APK plus safe split payload entries are packed into one APK.
  *
  * APK merge mode intentionally does not run aapt/aapt2 and does not merge split resource tables.
- * It skips AndroidManifest.xml, resources.arsc, res/**, signatures, framework APKs and overlay APKs from splits.
+ * It skips AndroidManifest.xml, resources.arsc, the res directory, signatures, framework APKs and overlay APKs from splits.
  * It can still recover useful dex/native/assets payloads from split bundles for patcher input.
  */
 fun importSingleApkArchive(
