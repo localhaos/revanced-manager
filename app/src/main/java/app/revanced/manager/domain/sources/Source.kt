@@ -64,7 +64,37 @@ sealed class Source<T>(
     }
 }
 
+val <T> Source<T>.displayName: String
+    get() {
+        val loadedName = (loaded as? PatchBundle)?.manifestAttributes?.name.cleanSourceText()
+        if (loadedName != null) return loadedName
+
+        val explicitName = name.cleanSourceText()
+        if (explicitName != null) return explicitName
+
+        val remoteName = (this as? RemoteSource<*>)?.endpoint?.let(GitHubBundleAutoFinder::displayNameFrom).cleanSourceText()
+        if (remoteName != null) return remoteName
+
+        return "Source #$uid"
+    }
+
+private fun String?.cleanSourceText(): String? = this
+    ?.trim()
+    ?.takeUnless { value ->
+        value.isBlank() ||
+                value.equals("null", ignoreCase = true) ||
+                value.equals("vnull", ignoreCase = true) ||
+                value.equals("Bez nazwy", ignoreCase = true) ||
+                value.equals("No name", ignoreCase = true)
+    }
+
 object Extensions {
     val <T> Source<T>.asRemoteOrNull inline get() = this as? RemoteSource<T>
-    val PatchBundleSource.version get() = loaded?.manifestAttributes?.version
+    val PatchBundleSource.version get() = loaded?.manifestAttributes?.version?.cleanPatchVersion()
+}
+
+private fun String?.cleanPatchVersion(): String? = this
+    ?.trim()
+    ?.removePrefix("v")
+    ?.takeUnless { value -> value.isBlank() || value.equals("null", ignoreCase = true) }
 }
