@@ -1,0 +1,257 @@
+name: LocalHaos DEP Release Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_repo:
+        description: Upstream repository to sync after release
+        required: true
+        default: ReVanced/revanced-manager
+      upstream_branch:
+        description: Upstream branch
+        required: true
+        default: main
+      version_prefix:
+        description: LocalHaos version prefix
+        required: true
+        default: '2.1'
+      release_suffix:
+        description: LocalHaos release suffix
+        required: true
+        default: localhaos
+      publish_latest:
+        description: Mark GitHub release as latest
+        required: true
+        default: 'true'
+      push_synced_main:
+        description: Push upstream-synced main after release
+        required: true
+        default: 'true'
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: localhaos-dep-release-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ORG_GRADLE_PROJECT_org.gradle.daemon: 'false'
+  ORG_GRADLE_PROJECT_org.gradle.jvmargs: '-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
+  ORG_GRADLE_PROJECT_kotlin.daemon.jvm.options: '-Xmx2g'
+  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  release-then-sync:
+    name: Build next release, publish, then sync upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout local fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve next LocalHaos release number
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_PREFIX: ${{ github.event.inputs.version_prefix || '2.1' }}
+          RELEASE_SUFFIX: ${{ github.event.inputs.release_suffix || 'localhaos' }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          prefix="v${VERSION_PREFIX}."
+          suffix="-${RELEASE_SUFFIX}"
+          tags="$({ git tag -l "${prefix}*${suffix}" || true; gh release list --limit 100 --json tagName --jq '.[].tagName' || true; } | sort -u)"
+          current_max="0"
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            case "$tag" in
+              ${prefix}*${suffix})
+                n="${tag#${prefix}}"
+                n="${n%${suffix}}"
+                if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$current_max" ]; then
+                  current_max="$n"
+                fi
+                ;;
+            esac
+          done <<< "$tags"
+          next_patch="$((current_max + 1))"
+          version="${VERSION_PREFIX}.${next_patch}-${RELEASE_SUFFIX}"
+          tag="v${version}"
+          name="Reverse ${VERSION_PREFIX}.${next_patch} LocalHaos"
+          label="localhaos-reverse-${VERSION_PREFIX}.${next_patch}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=$name" >> "$GITHUB_ENV"
+          echo "BUILD_LABEL=$label" >> "$GITHUB_ENV"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "Resolved next release: $tag / $version"
+
+      - name: Assert LocalHaos version in app metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'version = %s\n' "$VERSION" > app/gradle.properties
+          git add app/gradle.properties
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: set $VERSION release version"
+          fi
+
+      - name: Verify LocalHaos GUI and parser features
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          test "${{ github.repository }}" = "localhaos/revanced-manager"
+          grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "version = $VERSION" app/gradle.properties
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build next LocalHaos APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion="$VERSION" -PmanagerBuildLabel="$BUILD_LABEL"
+
+      - name: Collect APK and provenance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/apk artifacts/provenance artifacts/reports artifacts/logs
+          find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
+          find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
+          find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
+          {
+            echo "repository=${{ github.repository }}"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "release_tag=$RELEASE_TAG"
+            echo "release_name=$RELEASE_NAME"
+            echo "version=$VERSION"
+            echo "build_label=$BUILD_LABEL"
+            echo "feature_online_patch_browser=true"
+            echo "feature_patch_parser_release_list_normalization=true"
+            echo "feature_installed_app_source=true"
+            echo "post_release_upstream_sync=true"
+            echo "upstream_repo=${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}"
+            echo "upstream_branch=${{ github.event.inputs.upstream_branch || 'main' }}"
+          } > artifacts/provenance/build-provenance.txt
+          cat > artifacts/provenance/release-notes.md <<EOF
+          # $RELEASE_NAME
+
+          Built by LocalHaos DEP Release Sync.
+
+          Included:
+          - Online patch browser.
+          - Patch source parser normalization for GitHub /releases URLs.
+          - Remote patch source fallback names.
+          - Explicit installed app source in APK source selector.
+          - Build provenance attached as release asset.
+
+          Upstream sync is executed after successful release publication.
+          EOF
+          sed -i 's/^          //' artifacts/provenance/release-notes.md
+          find artifacts -maxdepth 8 -type f -print | sort
+
+      - name: Upload diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhaos-dep-diagnostics-${{ github.sha }}
+          path: |
+            artifacts/provenance/
+            artifacts/reports/
+            artifacts/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Require APK output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$(find artifacts/apk -type f -name '*.apk' -print -quit)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhaos-dep-apk-${{ steps.version.outputs.tag }}-${{ github.sha }}
+          path: |
+            artifacts/apk/
+            artifacts/provenance/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release before upstream sync
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_LATEST: ${{ github.event.inputs.publish_latest || 'true' }}
+        run: |
+          set -euo pipefail
+          git tag -f "$RELEASE_TAG" "$(git rev-parse HEAD)"
+          git push origin "refs/tags/$RELEASE_TAG" --force
+          latest_args=()
+          if [ "$PUBLISH_LATEST" = "true" ]; then
+            latest_args+=(--latest)
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md "${latest_args[@]}"
+          else
+            gh release create "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md "${latest_args[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" artifacts/apk/* artifacts/provenance/build-provenance.txt --clobber
+
+      - name: Sync upstream after release publication
+        shell: bash
+        env:
+          UPSTREAM_REPO: ${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}
+          UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'main' }}
+          PUSH_SYNCED_MAIN: ${{ github.event.inputs.push_synced_main || 'true' }}
+        run: |
+          set -euo pipefail
+          git remote remove upstream >/dev/null 2>&1 || true
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream "$UPSTREAM_BRANCH" --tags
+          before_sha="$(git rev-parse HEAD)"
+          upstream_sha="$(git rev-parse "upstream/$UPSTREAM_BRANCH")"
+          echo "Local before sync: $before_sha"
+          echo "Upstream: $upstream_sha"
+          git merge --no-edit -X ours "upstream/$UPSTREAM_BRANCH"
+          after_sha="$(git rev-parse HEAD)"
+          echo "Local after sync: $after_sha"
+          if [ "$PUSH_SYNCED_MAIN" = "true" ]; then
+            git push origin HEAD:main
+          fi
