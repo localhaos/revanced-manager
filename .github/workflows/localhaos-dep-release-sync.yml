@@ -116,7 +116,7 @@ jobs:
             git commit -m "chore: set $VERSION release version"
           fi
 
-      - name: Verify LocalHaos GUI and parser features
+      - name: Verify LocalHaos GUI, parser, update and workflow features
         shell: bash
         run: |
           set -euo pipefail
@@ -126,6 +126,8 @@ jobs:
           grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
+          grep -R "localhaos/revanced-manager/releases" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt .github/workflows/*.yml
           grep -R "version = $VERSION" app/gradle.properties
 
       - name: Set up JDK 17
@@ -165,6 +167,8 @@ jobs:
             echo "feature_online_patch_browser=true"
             echo "feature_patch_parser_release_list_normalization=true"
             echo "feature_installed_app_source=true"
+            echo "feature_localhaos_app_update=true"
+            echo "feature_release_build_publish_sync=true"
             echo "post_release_upstream_sync=true"
             echo "upstream_repo=${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}"
             echo "upstream_branch=${{ github.event.inputs.upstream_branch || 'main' }}"
@@ -179,9 +183,10 @@ jobs:
           - Patch source parser normalization for GitHub /releases URLs.
           - Remote patch source fallback names.
           - Explicit installed app source in APK source selector.
+          - LocalHaos app update endpoint.
           - Build provenance attached as release asset.
 
-          Upstream sync is executed after successful release publication.
+          Upstream sync is executed after successful release publication. LocalHaos changes are re-asserted after sync before pushing main.
           EOF
           sed -i 's/^          //' artifacts/provenance/release-notes.md
           find artifacts -maxdepth 8 -type f -print | sort
@@ -239,7 +244,6 @@ jobs:
         env:
           UPSTREAM_REPO: ${{ github.event.inputs.upstream_repo || 'ReVanced/revanced-manager' }}
           UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'main' }}
-          PUSH_SYNCED_MAIN: ${{ github.event.inputs.push_synced_main || 'true' }}
         run: |
           set -euo pipefail
           git remote remove upstream >/dev/null 2>&1 || true
@@ -252,6 +256,31 @@ jobs:
           git merge --no-edit -X ours "upstream/$UPSTREAM_BRANCH"
           after_sha="$(git rev-parse HEAD)"
           echo "Local after sync: $after_sha"
-          if [ "$PUSH_SYNCED_MAIN" = "true" ]; then
-            git push origin HEAD:main
+
+      - name: Re-assert LocalHaos changes after upstream sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'version = %s\n' "$VERSION" > app/gradle.properties
+          test -f .github/workflows/build-apk.yml
+          test -f .github/workflows/release.yml
+          test -f .github/workflows/upstream-sync-reverse-release.yml
+          test -f .github/workflows/localhaos-dep-release-sync.yml
+          grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
+          grep -R "localhaos/revanced-manager/releases" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt .github/workflows/*.yml
+          grep -R "Build next release, publish, then sync upstream" .github/workflows/localhaos-dep-release-sync.yml
+          git add app/gradle.properties .github/workflows app/src/main/java/app/revanced/manager
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: re-assert LocalHaos changes after upstream sync"
           fi
+
+      - name: Push synced main with LocalHaos changes preserved
+        if: ${{ github.event.inputs.push_synced_main == 'true' || github.event.inputs.push_synced_main == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:main
