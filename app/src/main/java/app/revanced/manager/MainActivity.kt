@@ -80,7 +80,6 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.io.File
 import java.util.Locale
 import org.koin.androidx.viewmodel.ext.android.getViewModel as getActivityViewModel
 
@@ -115,6 +114,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        GeneratedApkInstallHandler.restore(this)
         enqueueGeneratedApkFromIntent(intent)
     }
 
@@ -132,20 +132,21 @@ class MainActivity : AppCompatActivity() {
     private fun enqueueGeneratedApkFromIntent(intent: Intent?) {
         val apk = GeneratedApkInstallHandler.fileFromIntent(intent) ?: return
         runCatching {
-            GeneratedApkInstallHandler.enqueue(apk)
+            GeneratedApkInstallHandler.enqueue(this, apk)
         }.onFailure { error ->
             Log.w(TAG, "Generated APK install request was rejected: ${apk.absolutePath}", error)
         }
     }
 
     private fun drainGeneratedApkInstalls() {
-        GeneratedApkInstallHandler.drainPending().forEach { apk ->
+        GeneratedApkInstallHandler.drainPending(this).forEach { apk ->
             runCatching {
                 pm.installPackage(apk)
             }.onSuccess {
                 Log.i(TAG, "Requested foreground installation for generated APK: ${apk.absolutePath}")
             }.onFailure { error ->
                 Log.w(TAG, "Failed to request foreground installation for generated APK: ${apk.absolutePath}", error)
+                runCatching { GeneratedApkInstallHandler.enqueue(this, apk) }
             }
         }
     }
