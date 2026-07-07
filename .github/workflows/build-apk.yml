@@ -70,6 +70,9 @@ jobs:
           grep -R "githubApiReleaseListRegex" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "displayNameFrom" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
           grep -R "UnsplitRecoveredBaseApk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "MergedSplitBundle" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "mergeApkEntries" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
+          grep -R "isMergeableSplitPayloadEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "unsplitRank" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "isRejectedFrameworkOrSplitEntry" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "framework-res.apk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
@@ -93,6 +96,7 @@ jobs:
             echo "feature_unsplit_apk_bundle_import=true"
             echo "feature_framework_split_filtering=true"
             echo "feature_auto_system_base_apk_source=true"
+            echo "feature_split_apk_merge=true"
           } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
