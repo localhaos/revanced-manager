@@ -9,30 +9,30 @@ import app.revanced.manager.data.room.AppDatabase
 import app.revanced.manager.data.room.bundles.PatchBundleEntity
 import app.revanced.manager.data.room.sources.SourceProperties
 import app.revanced.manager.data.room.sources.Source as SourceInfo
+import app.revanced.manager.domain.manager.SourceManager
+import app.revanced.manager.domain.manager.PreferencesManager
 import app.revanced.manager.domain.sources.APIPatchBundle
+import app.revanced.manager.domain.sources.GitHubBundleAutoFinder
 import app.revanced.manager.domain.sources.JsonPatchBundle
 import app.revanced.manager.domain.sources.LocalPatchBundle
-import app.revanced.manager.domain.sources.PatchBundleSource
-import app.revanced.manager.domain.manager.SourceManager
 import app.revanced.manager.domain.sources.Loader
+import app.revanced.manager.domain.sources.PatchBundleSource
 import app.revanced.manager.domain.sources.RemotePatchBundle
 import app.revanced.manager.domain.sources.Source
-import app.revanced.manager.patcher.patch.PatchInfo
 import app.revanced.manager.patcher.patch.PatchBundle
 import app.revanced.manager.patcher.patch.PatchBundleInfo
+import app.revanced.manager.patcher.patch.PatchInfo
 import app.revanced.manager.util.tag
-import kotlinx.collections.immutable.*
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import java.io.File
-import kotlin.collections.map
-import kotlin.text.ifEmpty
 import kotlin.time.Instant
 
 private typealias Info = PersistentMap<Int, PatchBundleInfo.Global>
@@ -59,8 +59,14 @@ class PatchBundleRepository(
 
     override fun loadEntity(entity: PatchBundleEntity): PatchBundleSource = with(entity) {
         val file = directoryOf(uid).resolve("patches.jar")
-        val actualName =
-            entity.name.ifEmpty { app.getString(if (uid == 0) R.string.patches_name_default else R.string.source_name_fallback) }
+        val actualName = entity.name.ifEmpty {
+            when (val sourceInfo = source) {
+                is SourceInfo.API -> app.getString(R.string.patches_name_default)
+                is SourceInfo.Local -> app.getString(R.string.source_name_fallback)
+                is SourceInfo.Remote -> GitHubBundleAutoFinder.displayNameFrom(sourceInfo.url.toString())
+                    ?: app.getString(R.string.source_name_fallback)
+            }
+        }
 
         val releasedAt = entity.releasedAt?.let {
             Instant.fromEpochMilliseconds(it)
@@ -138,10 +144,6 @@ class PatchBundleRepository(
                 if (versions.keys.size < 2)
                     return@mapValues versions.keys.firstOrNull()
 
-                // The entries are ordered from most compatible to least compatible.
-                // If there are entries with the same number of compatible patches, older versions will be first, which is undesirable.
-                // This means we have to pick the last entry we find that has the highest patch count.
-                // The order may change in future versions of ReVanced Library.
                 var currentHighestPatchCount = -1
                 versions.entries.last { (_, patchCount) ->
                     if (patchCount >= currentHighestPatchCount) {
@@ -153,7 +155,6 @@ class PatchBundleRepository(
     }
 
     private suspend fun loadMetadata(sources: MutableMap<Int, PatchBundleSource>): Map<Int, PatchBundleInfo.Global> {
-        // Map bundles -> sources
         val map = sources.mapNotNull { (_, src) ->
             (src.loaded ?: return@mapNotNull null) to src
         }.toMap()
