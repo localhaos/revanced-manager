@@ -219,11 +219,6 @@ class PatchBundleRepository(
                 return IllegalStateException("Patch bundle '$sourceName' contains a patch with an empty name")
             }
 
-            val duplicateName = groupingBy { it.name }.eachCount().entries.firstOrNull { it.value > 1 }?.key
-            if (duplicateName != null) {
-                return IllegalStateException("Patch bundle '$sourceName' contains duplicate patch name '$duplicateName'")
-            }
-
             return null
         }
 
