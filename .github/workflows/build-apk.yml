@@ -37,12 +37,31 @@ jobs:
         include:
           - label: stable-local
             version: 2.6.0-local.1
-          - label: stable-local-debugsigned
-            version: 2.6.0-local.1
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify checkout and feature files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository }}" = "localhaos/revanced-manager"
+          git rev-parse HEAD
+          test -f app/src/main/java/app/revanced/manager/util/GeneratedApkInstallHandler.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          test -f docs/patch-bundle-sources.md
+          mkdir -p artifacts/provenance
+          {
+            echo "repository=${{ github.repository }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "run_id=${{ github.run_id }}"
+            echo "build_label=${{ matrix.label }}"
+            echo "version=${{ matrix.version }}"
+          } > artifacts/provenance/build-provenance.txt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -79,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/apk artifacts/reports artifacts/logs artifacts/manifests
+          mkdir -p artifacts/apk artifacts/reports artifacts/logs artifacts/manifests artifacts/provenance
           find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
           find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
           find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
@@ -90,7 +109,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: revanced-manager-apk-${{ matrix.label }}-${{ github.sha }}
-          path: artifacts/apk/
+          path: |
+            artifacts/apk/
+            artifacts/provenance/
           if-no-files-found: error
           retention-days: 14
 
@@ -103,7 +124,6 @@ jobs:
             artifacts/reports/
             artifacts/logs/
             artifacts/manifests/
+            artifacts/provenance/
           if-no-files-found: ignore
           retention-days: 7
-
-# build trigger: stable KSP log level
