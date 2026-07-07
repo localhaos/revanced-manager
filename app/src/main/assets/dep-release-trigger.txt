@@ -27,3 +27,4 @@ Rerun reason:
 - added Jman catalog generated patches-bundle.json parser support
 - cleaned source display names and vnull rendering
 - fixed patch detection so valid bundles remain detected even when no patches match the currently selected package
+- fixed Source.kt syntax error caused by stray trailing brace
