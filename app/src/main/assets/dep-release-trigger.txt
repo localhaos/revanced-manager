@@ -9,6 +9,8 @@ Purpose:
 Included guarded features:
 - online patch browser
 - patch parser fixes
+- Jman-Github ReVanced-Patch-Bundles raw JSON metadata support
+- GitHub blob JSON to raw JSON normalization
 - installed app source
 - unsplit APK bundle import
 - split APK merge
@@ -21,3 +23,5 @@ Rerun reason:
 - fixed AppArchiveImport KDoc Kotlin parse failure
 - added guard that rejects parsed patch bundles with zero visible patches before UI display
 - fixed DEP upstream sync to fetch only upstream/main with --no-tags and avoid upstream dev tag conflicts
+- added Jman catalog generated patches-bundle.json parser support
+- cleaned source display names and vnull rendering
