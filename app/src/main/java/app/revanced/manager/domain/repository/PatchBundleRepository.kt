@@ -20,6 +20,7 @@ import app.revanced.manager.domain.sources.RemotePatchBundle
 import app.revanced.manager.domain.sources.Source
 import app.revanced.manager.patcher.patch.PatchBundle
 import app.revanced.manager.patcher.patch.PatchBundleInfo
+import app.revanced.manager.patcher.patch.PatchBundleType
 import app.revanced.manager.patcher.patch.PatchInfo
 import app.revanced.manager.util.tag
 import kotlinx.collections.immutable.PersistentMap
@@ -130,8 +131,10 @@ class PatchBundleRepository(
     val patchCountsFlow = bundleInfoFlow.map { it.mapValues { (_, info) -> info.patches.size } }
 
     val suggestedVersions = bundleInfoFlow.map {
-        val allPatches =
-            it.values.flatMap { bundle -> bundle.patches.map(PatchInfo::toPatcherPatch) }.toSet()
+        val allPatches = it.values
+            .filter { bundle -> bundle.bundleType == PatchBundleType.REVANCED }
+            .flatMap { bundle -> bundle.patches.map(PatchInfo::toPatcherPatch) }
+            .toSet()
 
         allPatches.mostCommonCompatibleVersions(countUnusedPatches = true)
             .mapValues { (_, versions) ->
@@ -185,8 +188,14 @@ class PatchBundleRepository(
                     return@forEach
                 }
 
+                val bundleType = detectBundleType(
+                    source = src,
+                    bundle = bundle,
+                )
+
                 this[src.uid] = PatchBundleInfo.Global(
                     src.name,
+                    bundleType,
                     bundle.manifestAttributes?.version,
                     (src as? RemotePatchBundle)?.releasedAt,
                     src.uid,
@@ -208,6 +217,25 @@ class PatchBundleRepository(
 
     private companion object PatchBundleLoader : Loader<PatchBundle> {
         override fun load(file: File) = PatchBundle(file.absolutePath)
+
+        private fun detectBundleType(source: PatchBundleSource, bundle: PatchBundle): PatchBundleType {
+            val endpoint = (source as? RemotePatchBundle)?.endpoint.orEmpty()
+            val manifest = bundle.manifestAttributes
+            val haystack = listOf(
+                endpoint,
+                source.name,
+                manifest?.name.orEmpty(),
+                manifest?.source.orEmpty(),
+                manifest?.website.orEmpty(),
+                manifest?.description.orEmpty(),
+            ).joinToString("\n").lowercase()
+
+            return when {
+                haystack.contains(".arp") || haystack.contains("ample") -> PatchBundleType.AMPLE
+                haystack.contains(".mpp") || haystack.contains("morphe") || haystack.contains("hoo-dles") -> PatchBundleType.MORPHE
+                else -> PatchBundleType.REVANCED
+            }
+        }
 
         private fun List<PatchInfo>.validateParsedPatchList(sourceName: String): Throwable? {
             if (isEmpty()) {
