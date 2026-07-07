@@ -10,3 +10,11 @@ Included changes:
 - GitHub bundle recognition
 - Morphe patch index diagnostics
 - KSP source-set placeholders
+- Downloads settings Patches tab
+- patch bundle source URL import
+- patch bundle source local file import
+- source version wrapper converters
+- source display wrapper helpers
+
+Release trigger:
+- publish or refresh v2.1.0 through Reverse 2.1 Release workflow
