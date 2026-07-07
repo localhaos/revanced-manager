@@ -5,13 +5,32 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.github/workflows/build-apk.yml'
+      - 'app/**'
+      - 'api/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
+      - '!app/src/main/assets/dep-release-trigger.txt'
   pull_request:
     branches:
       - main
+    paths:
+      - '.github/workflows/build-apk.yml'
+      - 'app/**'
+      - 'api/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
 
 concurrency:
-  group: build-apk-${{ github.workflow }}-${{ github.ref }}-${{ github.run_id }}
-  cancel-in-progress: false
+  group: build-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -63,6 +82,7 @@ jobs:
           test -f app/src/main/java/app/revanced/manager/domain/sources/RemoteSource.kt
           test -f app/src/main/java/app/revanced/manager/domain/sources/Source.kt
           test -f app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
+          test -f app/src/main/java/app/revanced/manager/patcher/patch/PatchBundleType.kt
           test -f app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           test -f app/src/main/java/app/revanced/manager/util/SystemApkSource.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
@@ -78,6 +98,8 @@ jobs:
           grep -R "cleanVersionText" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "validateParsedPatchList" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
           grep -R "contains no patches" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
+          grep -R "PatchBundleType.detect" app/src/main/java/app/revanced/manager/domain/repository/PatchBundleRepository.kt
+          grep -R "detectionOrder = listOf(AMPLE, MORPHE, REVANCED)" app/src/main/java/app/revanced/manager/patcher/patch/PatchBundleType.kt
           grep -R "UnsplitRecoveredBaseApk" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "MergedSplitBundle" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "mergeApkEntries" app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
@@ -103,6 +125,7 @@ jobs:
             echo "feature_patch_parser_release_list_normalization=true"
             echo "feature_jman_patch_bundle_json_parser=true"
             echo "feature_patch_display_validation=true"
+            echo "feature_bundle_family_detection=true"
             echo "feature_localhaos_app_update=true"
             echo "feature_unsplit_apk_bundle_import=true"
             echo "feature_framework_split_filtering=true"
