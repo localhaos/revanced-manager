@@ -524,12 +524,18 @@ private fun <T> SourceItem(
             val version = source.loaded?.version
             val relativeTime =
                 (source.asRemoteOrNull)?.releasedAt?.relativeTime(LocalContext.current)
+            val versionText = when {
+                version != null && relativeTime != null -> "v$version\u2002($relativeTime)"
+                version != null -> "v$version"
+                relativeTime != null -> relativeTime
+                else -> ""
+            }
 
             Text(
                 text = buildAnnotatedString {
-                    append(if (relativeTime != null) "v$version\u2002($relativeTime)" else "v$version")
+                    append(versionText)
                     if (stateText != null) withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
-                        append("\u2002\u2022\u2002")
+                        if (versionText.isNotBlank()) append("\u2002•\u2002")
                         append(stringResource(stateText))
                     }
                 },
