@@ -12,7 +12,7 @@ enum class PatchBundleType(
 ) {
     REVANCED(
         primaryExtension = ".rvp",
-        markers = setOf(".rvp", "revanced"),
+        markers = setOf(".rvp"),
     ),
     MORPHE(
         primaryExtension = ".mpp",
@@ -29,13 +29,15 @@ enum class PatchBundleType(
     }
 
     companion object {
+        private val detectionOrder = listOf(AMPLE, MORPHE, REVANCED)
+
         fun detect(vararg values: String?): PatchBundleType {
             val haystack = values
                 .filterNotNull()
                 .joinToString("\n")
                 .lowercase()
 
-            return entries.firstOrNull { it.matches(haystack) } ?: REVANCED
+            return detectionOrder.firstOrNull { it.matches(haystack) } ?: REVANCED
         }
     }
 }
