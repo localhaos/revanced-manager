@@ -1,8 +1,10 @@
-Reverse 2.1.1 release marker.
+Reverse 2.1.5 final release marker.
 
 Included changes:
+- explicit Installed app source in APK source selector
+- online patch browser in Patches settings
+- expanded online patch source catalog
 - localhaos GitHub manager update source
-- release time compatibility helper
 - APK build provenance checks
 - release checkout verification
 - generated APK install handler
@@ -17,6 +19,6 @@ Included changes:
 - source display wrapper helpers
 
 Release trigger:
-- publish v2.1.1-localhaos through Upstream Sync Reverse Release workflow
+- publish final v2.1.5-localhaos through Upstream Sync Reverse Release workflow
 - official upstream ReVanced sync checked
 - independent LocalHaos APK release requested
