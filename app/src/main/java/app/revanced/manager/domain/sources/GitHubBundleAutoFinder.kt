@@ -9,6 +9,8 @@ import kotlinx.datetime.LocalDateTime
  * Resolves repository, release and direct patch-bundle URLs into downloadable patch-bundle assets.
  *
  * Supported inputs:
+ * - github:owner/repo
+ * - https://morphe.software/add-source?github=owner/repo
  * - https://github.com/owner/repo
  * - https://github.com/owner/repo/releases
  * - https://github.com/owner/repo/releases/latest
@@ -50,6 +52,20 @@ object GitHubBundleAutoFinder {
         if (isMorphePatchIndex(normalized)) return null
         if (metadataEndpointFrom(normalized) != null) return null
 
+        githubSourceShorthandRegex.matchEntire(normalized)?.let { match ->
+            val owner = match.groupValues[1]
+            val repo = match.groupValues[2]
+            val releaseRef = "latest"
+            return Candidate(owner, repo, releaseRef, githubReleaseApi(owner, repo, releaseRef), normalized)
+        }
+
+        morpheAddSourceGithubRegex.matchEntire(normalized)?.let { match ->
+            val owner = match.groupValues[1]
+            val repo = match.groupValues[2]
+            val releaseRef = "latest"
+            return Candidate(owner, repo, releaseRef, githubReleaseApi(owner, repo, releaseRef), normalized)
+        }
+
         githubApiReleaseListRegex.matchEntire(normalized)?.let { match ->
             val owner = match.groupValues[1]
             val repo = match.groupValues[2]
@@ -87,6 +103,7 @@ object GitHubBundleAutoFinder {
         jmanMetadataDisplayNameFrom(normalized)?.let { return it }
         metadataEndpointFrom(normalized)?.let { endpoint ->
             jmanMetadataDisplayNameFrom(endpoint)?.let { return it }
+            morpheRootMetadataDisplayNameFrom(endpoint)?.let { return it }
             return endpoint.substringAfterLast('/').substringBeforeLast('.').toDisplayTitle()
         }
 
@@ -119,7 +136,7 @@ object GitHubBundleAutoFinder {
     fun directAssetFrom(input: String): ReVancedAsset? {
         if (isMorphePatchIndex(input)) {
             throw IllegalArgumentException(
-                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp, .arp, .jar or generated bundle JSON URL."
+                "morphe-patches.software is a patch index page, not a downloadable bundle. Open it and add a direct .mpp, .rvp, .arp, .jar, GitHub source shorthand, Morphe add-source URL or generated bundle JSON URL."
             )
         }
 
@@ -180,6 +197,13 @@ object GitHubBundleAutoFinder {
         return "Jman/${fileName.removeSuffix("-patches-bundle").toDisplayTitle()}"
     }
 
+    private fun morpheRootMetadataDisplayNameFrom(input: String): String? {
+        val match = morpheRootMetadataRegex.matchEntire(input.trim().trimEnd('/')) ?: return null
+        val owner = match.groupValues[1]
+        val repo = match.groupValues[2]
+        return "$owner/${repo.removeSuffix("-patches").toDisplayTitle()}"
+    }
+
     private fun String.toDisplayTitle(): String = split('-', '_')
         .filter { it.isNotBlank() }
         .joinToString(" ") { part -> part.replaceFirstChar { it.uppercaseChar() } }
@@ -202,6 +226,16 @@ object GitHubBundleAutoFinder {
     }
 
     private val directBundleCreatedAt = LocalDateTime(1970, 1, 1, 0, 0)
+
+    private val githubSourceShorthandRegex = Regex(
+        pattern = "^github:([^/]+)/([^/#?@]+)(?:@([^/#?]+))?$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val morpheAddSourceGithubRegex = Regex(
+        pattern = "^https?://morphe\\.software/add-source\\?github=([^/]+)/([^&#/?]+)(?:[&#].*)?$",
+        option = RegexOption.IGNORE_CASE,
+    )
 
     private val githubRepoRegex = Regex(
         pattern = "^https://github\\.com/([^/]+)/([^/#?]+)(?:[?#].*)?$",
@@ -245,6 +279,11 @@ object GitHubBundleAutoFinder {
 
     private val jmanRawBundleRegex = Regex(
         pattern = "^https://raw\\.githubusercontent\\.com/Jman-Github/ReVanced-Patch-Bundles/bundles/patch-bundles/([^/]+)/([^/]+)\\.json$",
+        option = RegexOption.IGNORE_CASE,
+    )
+
+    private val morpheRootMetadataRegex = Regex(
+        pattern = "^https://raw\\.githubusercontent\\.com/([^/]+)/([^/]+)/[^/]+/patches-bundle\\.json$",
         option = RegexOption.IGNORE_CASE,
     )
 
