@@ -13,6 +13,11 @@ sealed class PatchBundleInfo {
     abstract val name: String
 
     /**
+     * Runtime family used by this bundle.
+     */
+    abstract val bundleType: PatchBundleType
+
+    /**
      * The version of the bundle.
      */
     abstract val version: String?
@@ -39,6 +44,7 @@ sealed class PatchBundleInfo {
      */
     data class Global(
         override val name: String,
+        override val bundleType: PatchBundleType,
         override val version: String?,
         override val releasedAt: LocalDateTime?,
         override val uid: Int,
@@ -56,7 +62,6 @@ sealed class PatchBundleInfo {
             relevantPatches.forEach {
                 val targetList = when {
                     it.compatiblePackages == null -> universal
-                    // Before a concrete version is chosen, keep version-targeted patches visible.
                     version == null || it.supports(
                         packageName,
                         version
@@ -70,6 +75,7 @@ sealed class PatchBundleInfo {
 
             return Scoped(
                 name,
+                bundleType,
                 this.version,
                 releasedAt,
                 uid,
@@ -92,6 +98,7 @@ sealed class PatchBundleInfo {
      */
     data class Scoped(
         override val name: String,
+        override val bundleType: PatchBundleType,
         override val version: String?,
         override val releasedAt: LocalDateTime?,
         override val uid: Int,
