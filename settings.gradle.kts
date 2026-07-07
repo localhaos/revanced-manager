@@ -31,6 +31,22 @@ dependencyResolutionManagement {
                     .get()
             }
         }
+        maven {
+            name = "morphePackages"
+            url = uri("https://maven.pkg.github.com/MorpheApp/registry")
+            credentials {
+                username = providers.gradleProperty("githubPackagesUsername")
+                    .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+                    .orElse(providers.environmentVariable("GH_USERNAME"))
+                    .orElse("github-actions")
+                    .get()
+                password = providers.gradleProperty("githubPackagesPassword")
+                    .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+                    .orElse(providers.environmentVariable("GH_TOKEN"))
+                    .orElse("")
+                    .get()
+            }
+        }
     }
 }
 
