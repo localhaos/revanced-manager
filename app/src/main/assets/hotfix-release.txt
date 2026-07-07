@@ -21,3 +21,4 @@ Release trigger:
 - yaml syntax fixed before this trigger
 - upstream fork sync from ReVanced/revanced-manager requested
 - upstream file refresh requested
+- official upstream ReVanced sync requested
