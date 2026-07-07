@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace --info clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=${{ matrix.version }} -PmanagerBuildLabel=${{ matrix.label }}
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=${{ matrix.version }} -PmanagerBuildLabel=${{ matrix.label }}
 
       - name: Collect build outputs
         if: always()
@@ -106,4 +106,4 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-# build trigger: updated local app version
+# build trigger: stable KSP log level
