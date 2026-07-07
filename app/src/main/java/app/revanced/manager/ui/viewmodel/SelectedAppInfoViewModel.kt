@@ -120,8 +120,8 @@ class SelectedAppInfoViewModel(
             val downloadedAppsDeferred =
                 async(Dispatchers.IO) { downloadedAppRepository.getAllByPackage(packageName) }
 
-        installedAppData =
-            packageInfo.await()?.let {
+            installedAppData =
+                packageInfo.await()?.let {
                     // Split APKs cannot be used as a patch source.
                     if (it.isSplitApk()) return@let null
                     SelectedApp.Installed(
@@ -229,6 +229,12 @@ class SelectedAppInfoViewModel(
     }
 
     fun setTargetVersion(version: String?) {
+        val installed = installedAppData?.first
+        if (installed != null && installed.version == version) {
+            selectedApp = installed
+            return
+        }
+
         val current = selectedApp
         selectedApp = when (current) {
             is SelectedApp.Search -> current.copy(version = version)
@@ -243,7 +249,6 @@ class SelectedAppInfoViewModel(
             val matchesVersion = requiredVersion == null || installed.version == requiredVersion
             val usable = when {
                 meta?.installType == InstallType.MOUNT && !hasRoot -> false
-                meta?.installType == InstallType.DEFAULT -> false
                 else -> true
             }
             if (matchesVersion && usable) return installed
@@ -448,7 +453,6 @@ class SelectedAppInfoViewModel(
                     val bundleOptions = this@filtered[bundle.uid] ?: return@bundles
 
                     val patches = bundle.patches.associateBy { it.name }
-
                     this@options[bundle.uid] = buildMap bundleOptions@{
                         bundleOptions.forEach patch@{ (patchName, values) ->
                             // Get all valid option keys for the patch.
