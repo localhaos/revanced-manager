@@ -1,100 +1,137 @@
 name: Release
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to create or update
+        required: true
+        default: v2.1.5-localhaos
+      release_name:
+        description: Release title
+        required: true
+        default: Reverse 2.1.5 LocalHaos
+
+permissions:
+  contents: write
+  packages: read
+
+concurrency:
+  group: localhaos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ORG_GRADLE_PROJECT_org.gradle.daemon: 'false'
+  ORG_GRADLE_PROJECT_org.gradle.jvmargs: '-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
+  ORG_GRADLE_PROJECT_kotlin.daemon.jvm.options: '-Xmx2g'
+  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
+  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-    release:
-        name: Release
-        if: ${{ !contains(github.event.head_commit.message || '', '[skip ci]') }}
-        permissions:
-            contents: write
-            packages: write
-            id-token: write
-            attestations: write
-            artifact-metadata: write
-        runs-on: ubuntu-latest
+  release:
+    name: Build and publish LocalHaos APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "RELEASE_TAG=${{ github.event.inputs.release_tag || 'v2.1.5-localhaos' }}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=${{ github.event.inputs.release_name || 'Reverse 2.1.5 LocalHaos' }}" >> "$GITHUB_ENV"
+
+      - name: Verify LocalHaos release checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ github.repository }}" = "localhaos/revanced-manager"
+          git rev-parse HEAD
+          test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          grep -R "version = 2.1.5-localhaos" app/gradle.properties
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build LocalHaos APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=2.1.5-localhaos -PmanagerBuildLabel=localhaos-reverse-2.1.5
+
+      - name: Collect release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/apk artifacts/provenance
+          find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \;
+          test -n "$(find artifacts/apk -type f -name '*.apk' -print -quit)"
+          {
+            echo "repository=${{ github.repository }}"
+            echo "ref=${{ github.ref }}"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "run_id=${{ github.run_id }}"
+            echo "release_tag=$RELEASE_TAG"
+            echo "release_name=$RELEASE_NAME"
+            echo "version=2.1.5-localhaos"
+            echo "build_label=localhaos-reverse-2.1.5"
+            echo "feature_online_patch_browser=true"
+            echo "feature_installed_app_source=true"
+          } > artifacts/provenance/build-provenance.txt
+          cat > artifacts/provenance/release-notes.md <<'EOF'
+          # Reverse 2.1.5 LocalHaos
+
+          Included LocalHaos changes:
+          - Online patch browser with expanded patch source list.
+          - Explicit Installed app source in APK source selector.
+          - Independent version label: 2.1.5-localhaos.
+          - Build provenance is attached as a release asset.
+          EOF
+          sed -i 's/^          //' artifacts/provenance/release-notes.md
+          find artifacts -maxdepth 4 -type f -print | sort
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: localhaos-release-apk-${{ github.sha }}
+          path: |
+            artifacts/apk/
+            artifacts/provenance/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        shell: bash
         env:
-            GPG_PRIVATE_KEY_PRESENT: ${{ secrets.GPG_PRIVATE_KEY != '' && 'true' || 'false' }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v6
-              with:
-                  fetch-depth: 0
-
-            - name: Verify release checkout
-              shell: bash
-              run: |
-                  set -euo pipefail
-                  test "${{ github.repository }}" = "localhaos/revanced-manager"
-                  git rev-parse HEAD
-                  test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-                  test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
-                  grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-                  grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
-
-            - name: Setup Java
-              uses: actions/setup-java@v5
-              with:
-                  distribution: "temurin"
-                  java-version: "17"
-
-            - name: Cache Gradle
-              uses: burrunan/gradle-cache-action@v3
-
-            - name: Setup keystore
-              shell: bash
-              run: |
-                  set -euo pipefail
-                  echo "${{ secrets.KEYSTORE }}" | base64 --decode > "app/keystore.jks"
-                  test -s app/keystore.jks
-                  keytool -list -v -keystore app/keystore.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" >/tmp/keystore-list.txt
-                  sed -n '1,80p' /tmp/keystore-list.txt
-
-            - name: Build
-              env:
-                  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
-                  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
-              run: ./gradlew --no-daemon --stacktrace assembleRelease
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v6
-              with:
-                  node-version: "lts/*"
-                  cache: "npm"
-
-            - name: Install dependencies
-              run: npm install
-
-            - name: Import GPG key
-              if: env.GPG_PRIVATE_KEY_PRESENT == 'true'
-              uses: crazy-max/ghaction-import-gpg@v7
-              with:
-                  gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-                  passphrase: ${{ secrets.GPG_PASSPHRASE }}
-                  fingerprint: ${{ vars.GPG_FINGERPRINT }}
-
-            - name: Release API
-              run: npx multi-semantic-release --debug --tag-format 'api@${version}' --ignore-packages app
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
-                  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Release
-              id: release
-              run: npx multi-semantic-release --debug --tag-format 'v${version}' --ignore-packages api
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  ORG_GRADLE_PROJECT_githubPackagesUsername: ${{ github.actor }}
-                  ORG_GRADLE_PROJECT_githubPackagesPassword: ${{ secrets.GITHUB_TOKEN }}
-                  KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-                  KEYSTORE_ENTRY_ALIAS: ${{ secrets.KEYSTORE_ENTRY_ALIAS }}
-                  KEYSTORE_ENTRY_PASSWORD: ${{ secrets.KEYSTORE_ENTRY_PASSWORD }}
-
-            - name: Attest
-              if: steps.release.outputs.NEW_TAG != ''
-              uses: actions/attest@v4
-              with:
-                  subject-name: "ReVanced Manager ${{ steps.release.outputs.NEW_TAG }}"
-                  subject-path: app/build/outputs/apk/release/revanced-manager*.apk
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$RELEASE_TAG" "$(git rev-parse HEAD)"
+          git push origin "refs/tags/$RELEASE_TAG" --force
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
+          else
+            gh release create "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file artifacts/provenance/release-notes.md --latest
+          fi
+          gh release upload "$RELEASE_TAG" artifacts/apk/* artifacts/provenance/build-provenance.txt --clobber
