@@ -13,10 +13,12 @@ import app.revanced.manager.data.room.apps.downloaded.DownloadedApp
 import app.revanced.manager.domain.manager.PreferencesManager
 import app.revanced.manager.domain.repository.DownloadedAppRepository
 import app.revanced.manager.domain.repository.DownloaderRepository
+import app.revanced.manager.domain.repository.PatchBundleRepository
 import app.revanced.manager.domain.sources.Extensions.asRemoteOrNull
 import app.revanced.manager.domain.sources.RemoteSource
 import app.revanced.manager.domain.sources.Source
 import app.revanced.manager.network.downloader.DownloaderPackage
+import app.revanced.manager.patcher.patch.PatchBundle
 import app.revanced.manager.util.PM
 import app.revanced.manager.util.mutableStateSetOf
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +32,7 @@ class DownloadsViewModel(
     app: Application,
     private val downloadedAppRepository: DownloadedAppRepository,
     private val downloaderRepository: DownloaderRepository,
+    private val patchBundleRepository: PatchBundleRepository,
     prefs: PreferencesManager,
     val pm: PM,
     val networkInfo: NetworkInfo,
@@ -37,6 +40,7 @@ class DownloadsViewModel(
     private val contentResolver = app.contentResolver
     val usePrereleases = prefs.useDownloaderPrerelease
     val downloaderSources = downloaderRepository.downloaderSources
+    val patchBundleSources = patchBundleRepository.sources
     val downloadedApps = downloadedAppRepository.getAll().map { downloadedApps ->
         downloadedApps.sortedWith(
             compareBy<DownloadedApp> {
@@ -47,6 +51,9 @@ class DownloadsViewModel(
     val appSelection = mutableStateSetOf<DownloadedApp>()
 
     var isRefreshingDownloaders by mutableStateOf(false)
+        private set
+
+    var isRefreshingPatchBundles by mutableStateOf(false)
         private set
 
     var isUpdatingDownloader by mutableStateOf(false)
@@ -68,6 +75,10 @@ class DownloadsViewModel(
 
     fun createRemoteSource(apiUrl: String, autoUpdate: Boolean) = viewModelScope.launch {
         downloaderRepository.createRemote(apiUrl, autoUpdate)
+    }
+
+    fun createRemotePatchBundleSource(apiUrl: String, autoUpdate: Boolean = true) = viewModelScope.launch {
+        patchBundleRepository.createRemote(apiUrl, autoUpdate)
     }
 
     fun toggleApp(downloadedApp: DownloadedApp) {
@@ -93,6 +104,12 @@ class DownloadsViewModel(
         isRefreshingDownloaders = false
     }
 
+    fun refreshPatchBundles() = viewModelScope.launch {
+        isRefreshingPatchBundles = true
+        patchBundleRepository.updateCheck(showToast = true)
+        isRefreshingPatchBundles = false
+    }
+
     fun deleteDownloader(src: Source<DownloaderPackage>) = viewModelScope.launch {
         try {
             deletingDownloaderUid = src.uid
@@ -109,6 +126,10 @@ class DownloadsViewModel(
         } finally {
             isUpdatingDownloader = false
         }
+    }
+
+    fun updatePatchBundle(src: RemoteSource<PatchBundle>) = viewModelScope.launch {
+        patchBundleRepository.update(src, showToast = true)
     }
 
     fun setAutoUpdate(src: RemoteSource<DownloaderPackage>, value: Boolean) = viewModelScope.launch {
