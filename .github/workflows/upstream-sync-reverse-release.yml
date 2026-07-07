@@ -10,13 +10,7 @@ on:
       release_name:
         description: Release title
         required: true
-        default: Reverse 2.1.5 LocalHaos
-  push:
-    branches:
-      - main
-    paths:
-      - 'app/**'
-      - 'docs/patch-bundle-sources.md'
+        default: Reverse LocalHaos Legacy
 
 permissions:
   contents: write
@@ -37,7 +31,7 @@ env:
 
 jobs:
   sync-build-release:
-    name: Build and publish LocalHaos APK
+    name: Build and publish LocalHaos legacy APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -52,8 +46,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "RELEASE_TAG=${{ github.event.inputs.release_tag || 'v2.1.5-localhaos' }}" >> "$GITHUB_ENV"
-          echo "RELEASE_NAME=${{ github.event.inputs.release_name || 'Reverse 2.1.5 LocalHaos' }}" >> "$GITHUB_ENV"
+          version="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' app/gradle.properties | head -n 1)"
+          test -n "$version"
+          build_label="localhaos-reverse-${version%-localhaos}"
+          build_label="${build_label// /-}"
+          echo "LOCALHAOS_VERSION=$version" >> "$GITHUB_ENV"
+          echo "BUILD_LABEL=$build_label" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${{ github.event.inputs.release_tag }}" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=${{ github.event.inputs.release_name }}" >> "$GITHUB_ENV"
+          echo "Resolved version: $version"
+          echo "Resolved build label: $build_label"
 
       - name: Verify LocalHaos checkout
         shell: bash
@@ -63,11 +65,16 @@ jobs:
           git rev-parse HEAD
           test -f app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           test -f app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/RemoteSource.kt
+          test -f app/src/main/java/app/revanced/manager/domain/sources/Source.kt
+          test -f app/src/main/java/app/revanced/manager/util/AppArchiveImport.kt
           grep -R "Online patch browser" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
           grep -R "installed_app" app/src/main/java/app/revanced/manager/ui/screen/SelectedAppInfoScreen.kt
-          grep -R "Patches(R.string.tab_patches" app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          grep -R "createLocalPatchBundleSource" app/src/main/java/app/revanced/manager/ui/viewmodel/DownloadsViewModel.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
-          grep -R "version = 2.1.5-localhaos" app/gradle.properties
+          grep -R "metadataEndpointFrom" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt app/src/main/java/app/revanced/manager/domain/sources/RemoteSource.kt
+          grep -R "Jman-Github/ReVanced-Patch-Bundles" app/src/main/java/app/revanced/manager/domain/sources/GitHubBundleAutoFinder.kt app/src/main/java/app/revanced/manager/ui/screen/settings/DownloadsSettingsScreen.kt
+          grep -R "LOCALHAOS_MANAGER_LATEST_RELEASE" app/src/main/java/app/revanced/manager/network/api/ReVancedAPI.kt
+          grep -R "version = $LOCALHAOS_VERSION" app/gradle.properties
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -85,14 +92,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion=2.1.5-localhaos -PmanagerBuildLabel=localhaos-reverse-2.1.5
+          mkdir -p artifacts/provenance
+          ./gradlew --no-daemon --stacktrace clean :app:assembleRelease -PsignAsDebug -PmanagerVersion="$LOCALHAOS_VERSION" -PmanagerBuildLabel="$BUILD_LABEL" 2>&1 | tee artifacts/provenance/gradle-build.log
 
       - name: Collect APK and provenance
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/apk artifacts/provenance
-          find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \;
+          mkdir -p artifacts/apk artifacts/provenance artifacts/reports artifacts/logs artifacts/manifests
+          find app/build/outputs/apk -type f \( -name '*.apk' -o -name '*.idsig' \) -print -exec cp -v {} artifacts/apk/ \; || true
+          find app/build/reports -type f -print -exec cp --parents -v {} artifacts/reports/ \; || true
+          find . -path '*/build/tmp/*' -type f \( -name '*.log' -o -name '*.txt' \) -print -exec cp --parents -v {} artifacts/logs/ \; || true
           test -n "$(find artifacts/apk -type f -name '*.apk' -print -quit)"
           {
             echo "repository=${{ github.repository }}"
@@ -101,27 +112,30 @@ jobs:
             echo "run_id=${{ github.run_id }}"
             echo "release_tag=$RELEASE_TAG"
             echo "release_name=$RELEASE_NAME"
-            echo "version=2.1.5-localhaos"
-            echo "build_label=localhaos-reverse-2.1.5"
+            echo "version=$LOCALHAOS_VERSION"
+            echo "build_label=$BUILD_LABEL"
             echo "feature_online_patch_browser=true"
+            echo "feature_jman_patch_bundle_json_parser=true"
             echo "feature_installed_app_source=true"
           } > artifacts/provenance/build-provenance.txt
-          cat > artifacts/provenance/release-notes.md <<'EOF'
-          # Reverse 2.1.5 LocalHaos
+          cat > artifacts/provenance/release-notes.md <<EOF
+          # $RELEASE_NAME
 
-          Included LocalHaos changes:
-          - Online patch browser with expanded patch source list.
-          - Explicit Installed app source in APK source selector.
-          - Independent version label: 2.1.5-localhaos.
-          - Build provenance is attached as a release asset.
+          Built by the manual-only legacy LocalHaos release workflow.
+
+          Included:
+          - Online patch browser.
+          - Jman generated patch bundle JSON parser support.
+          - Explicit installed app source in APK source selector.
+          - Build provenance attached as release asset.
           EOF
           sed -i 's/^          //' artifacts/provenance/release-notes.md
-          find artifacts -maxdepth 4 -type f -print | sort
+          find artifacts -maxdepth 8 -type f -print | sort
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: localhaos-reverse-2.1.5-apk-${{ github.sha }}
+          name: localhaos-legacy-apk-${{ env.BUILD_LABEL }}-${{ github.sha }}
           path: |
             artifacts/apk/
             artifacts/provenance/
