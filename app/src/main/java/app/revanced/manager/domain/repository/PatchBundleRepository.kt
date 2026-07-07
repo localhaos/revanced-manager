@@ -10,7 +10,6 @@ import app.revanced.manager.data.room.bundles.PatchBundleEntity
 import app.revanced.manager.data.room.sources.SourceProperties
 import app.revanced.manager.data.room.sources.Source as SourceInfo
 import app.revanced.manager.domain.manager.SourceManager
-import app.revanced.manager.domain.manager.PreferencesManager
 import app.revanced.manager.domain.sources.APIPatchBundle
 import app.revanced.manager.domain.sources.GitHubBundleAutoFinder
 import app.revanced.manager.domain.sources.JsonPatchBundle
@@ -25,8 +24,10 @@ import app.revanced.manager.patcher.patch.PatchInfo
 import app.revanced.manager.util.tag
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
